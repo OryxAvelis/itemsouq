@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Itemsouq Fruits — catalogue marocain de fruits Blox Fruits avec commande WhatsApp et paiement local.">
+  <meta name="theme-color" content="#07111f">
+  <title>Itemsouq Fruits · Blox Fruits au Maroc</title>
+  <link rel="icon" href="assets/favicon.svg?v=2" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#catalogue">Aller au catalogue</a>
+
+  <div class="announcement">
+    <div class="container announcement-inner">
+      <span><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Commande vérifiée manuellement sur WhatsApp</span>
+      <span class="announcement-payments">Cash Plus <b>·</b> Wafacash <b>·</b> Livraison en jeu</span>
+    </div>
+  </div>
+
+  <header class="site-header" id="top">
+    <div class="container header-inner">
+      <a class="brand" href="#top" aria-label="Itemsouq Fruits, accueil">
+        <span class="brand-mark" aria-hidden="true"><img src="assets/brand/itemsouq-mark.svg" alt="" width="64" height="64"></span>
+        <span class="brand-copy">
+          <strong>ITEMSOUQ</strong>
+          <small>FRUITS MARKET</small>
+        </span>
+      </a>
+
+      <nav class="desktop-nav" aria-label="Navigation principale">
+        <a href="#top">Accueil</a>
+        <a href="#catalogue">Catalogue</a>
+        <a href="trading.html">Trading</a>
+        <a href="#comment-acheter">Comment acheter</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+
+      <div class="header-actions">
+        <button class="icon-action favorites-trigger" type="button" aria-label="Afficher mes favoris">
+          <i class="fa-regular fa-heart" aria-hidden="true"></i>
+          <span class="action-count" id="favorite-count" hidden>0</span>
+        </button>
+        <button class="cart-trigger" type="button" aria-label="Ouvrir ma commande" aria-controls="cart-drawer" aria-expanded="false">
+          <i class="fa-solid fa-bag-shopping" aria-hidden="true"></i>
+          <span>Ma commande</span>
+          <span class="cart-count" id="cart-count">0</span>
+        </button>
+        <button class="mobile-menu-trigger" type="button" aria-label="Ouvrir le menu" aria-controls="mobile-menu" aria-expanded="false">
+          <i class="fa-solid fa-bars" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>
+
+    <nav class="mobile-menu" id="mobile-menu" aria-label="Navigation mobile" hidden>
+      <a href="#top"><i class="fa-solid fa-house" aria-hidden="true"></i> Accueil</a>
+      <a href="#catalogue"><i class="fa-solid fa-store" aria-hidden="true"></i> Catalogue</a>
+      <a href="trading.html"><i class="fa-solid fa-right-left" aria-hidden="true"></i> Trading</a>
+      <a href="#comment-acheter"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Comment acheter</a>
+      <a href="#faq"><i class="fa-solid fa-comments" aria-hidden="true"></i> FAQ</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-orb hero-orb-one" aria-hidden="true"></div>
+      <div class="hero-orb hero-orb-two" aria-hidden="true"></div>
+      <div class="container hero-grid">
+        <div class="hero-copy">
+          <div class="eyebrow"><span class="live-dot"></span> Marketplace marocain · Démo</div>
+          <h1 id="hero-title">Tes fruits préférés,<br><span>livrés en jeu.</span></h1>
+          <p>Choisis un fruit physique ou permanent, confirme ton prix en dirhams et finalise ta commande avec un vendeur sur WhatsApp.</p>
+
+          <div class="hero-actions">
+            <a class="btn btn-primary btn-large" href="#catalogue">
+              Explorer les fruits <i class="fa-solid fa-arrow-down" aria-hidden="true"></i>
+            </a>
+            <a class="btn btn-whatsapp btn-large whatsapp-general" href="https://wa.me/?text=Salam%20Itemsouq%2C%20je%20veux%20des%20informations%20sur%20vos%20fruits." data-whatsapp-message="Salam Itemsouq, je veux des informations sur vos fruits." target="_blank" rel="noopener">
+              <i class="fa-brands fa-whatsapp" aria-hidden="true"></i> Ouvrir WhatsApp
+            </a>
+          </div>
+
+          <div class="hero-trust" aria-label="Garanties du service">
+            <div><i class="fa-solid fa-lock" aria-hidden="true"></i><span><strong>Paiement local</strong><small>Cash Plus ou Wafacash</small></span></div>
+            <div><i class="fa-solid fa-gamepad" aria-hidden="true"></i><span><strong>Livraison numérique</strong><small>Directement dans le jeu</small></span></div>
+            <div><i class="fa-solid fa-headset" aria-hidden="true"></i><span><strong>Support humain</strong><small>Confirmation sur WhatsApp</small></span></div>
+          </div>
+        </div>
+
+        <div class="hero-showcase" aria-label="Fruits populaires">
+          <div class="showcase-glow" aria-hidden="true"></div>
+          <div class="showcase-card showcase-main">
+            <div class="showcase-topline">
+              <span class="mini-label">FRUIT EN VEDETTE</span>
+              <span class="status-chip"><span></span> Disponible</span>
+            </div>
+            <div class="fruit-art fruit-art-dragon">
+              <span class="fruit-ring fruit-ring-one" aria-hidden="true"></span>
+              <span class="fruit-ring fruit-ring-two" aria-hidden="true"></span>
+              <span class="hero-spark-field" aria-hidden="true"></span>
+              <img src="assets/images/fruits/dragon.webp" alt="Illustration du fruit Dragon" width="512" height="498" decoding="async">
+            </div>
+            <div class="showcase-meta">
+              <div>
+                <span class="rarity-pill mythical">Mythique</span>
+                <h2>Dragon</h2>
+                <p>Fruit permanent · valeur officielle 5 000 Robux</p>
+              </div>
+              <button class="showcase-add" type="button" data-quick-add="Dragon" data-mode="permanent" aria-label="Ajouter Dragon permanent">
+                <i class="fa-solid fa-plus" aria-hidden="true"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="floating-card floating-one" aria-hidden="true">
+            <span class="floating-icon kitsune"><img src="assets/images/fruits/kitsune.webp" alt="" width="512" height="512" decoding="async"></span>
+            <span><small>Mythique</small><strong>Kitsune</strong></span>
+          </div>
+          <div class="floating-card floating-two" aria-hidden="true">
+            <span class="floating-icon buddha"><img src="assets/images/fruits/buddha.webp" alt="" width="512" height="512" decoding="async"></span>
+            <span><small>Légendaire</small><strong>Buddha</strong></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="container hero-stats" aria-label="Résumé du catalogue">
+        <div><strong>41</strong><span>fruits référencés</span></div>
+        <div><strong>5</strong><span>niveaux de rareté</span></div>
+        <div><strong>2</strong><span>formats disponibles</span></div>
+        <div><strong>100%</strong><span>commande WhatsApp</span></div>
+      </div>
+    </section>
+
+    <section class="catalogue-section" id="catalogue" aria-labelledby="catalogue-title">
+      <div class="container">
+        <div class="section-heading catalogue-heading">
+          <div>
+            <span class="section-kicker">LA BOUTIQUE</span>
+            <h2 id="catalogue-title">Trouve ton prochain fruit</h2>
+            <p>Les images, valeurs Beli et valeurs Robux viennent du wiki. Les prix MAD affichés sont des prix de démonstration à confirmer avec le vendeur.</p>
+          </div>
+          <a class="source-link" href="https://blox-fruits.fandom.com/wiki/Blox_Fruits" target="_blank" rel="noopener">
+            <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i> Source des images et valeurs
+          </a>
+        </div>
+
+        <div class="shop-panel">
+          <div class="variant-switch" role="group" aria-label="Format du fruit">
+            <button class="variant-option active" type="button" data-mode="physical" aria-pressed="true">
+              <span class="variant-icon"><i class="fa-solid fa-box-open" aria-hidden="true"></i></span>
+              <span><strong>Fruit physique</strong><small>Objet numérique échangeable en jeu</small></span>
+            </button>
+            <button class="variant-option" type="button" data-mode="permanent" aria-pressed="false">
+              <span class="variant-icon"><i class="fa-solid fa-infinity" aria-hidden="true"></i></span>
+              <span><strong>Fruit permanent</strong><small>Version permanente offerte en jeu</small></span>
+            </button>
+          </div>
+
+          <div class="filters-row">
+            <label class="search-control">
+              <span class="sr-only">Rechercher un fruit</span>
+              <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+              <input id="fruit-search" type="search" placeholder="Rechercher Dragon, Buddha…" autocomplete="off">
+              <kbd>⌘ K</kbd>
+            </label>
+
+            <label class="select-control">
+              <span class="sr-only">Filtrer par rareté</span>
+              <select id="rarity-filter">
+                <option value="all">Toutes les raretés</option>
+                <option value="Common">Commun</option>
+                <option value="Uncommon">Peu commun</option>
+                <option value="Rare">Rare</option>
+                <option value="Legendary">Légendaire</option>
+                <option value="Mythical">Mythique</option>
+              </select>
+              <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+            </label>
+
+            <label class="select-control">
+              <span class="sr-only">Filtrer par type</span>
+              <select id="type-filter">
+                <option value="all">Tous les types</option>
+                <option value="Natural">Naturel</option>
+                <option value="Elemental">Élémentaire</option>
+                <option value="Beast">Bête</option>
+              </select>
+              <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+            </label>
+
+            <label class="select-control sort-control">
+              <span class="sr-only">Trier les fruits</span>
+              <select id="sort-fruits">
+                <option value="featured">Recommandés</option>
+                <option value="value-desc">Valeur décroissante</option>
+                <option value="value-asc">Valeur croissante</option>
+                <option value="name">Nom A–Z</option>
+              </select>
+              <i class="fa-solid fa-arrow-down-wide-short" aria-hidden="true"></i>
+            </label>
+          </div>
+
+          <div class="catalogue-meta">
+            <p id="results-count" aria-live="polite">41 fruits disponibles</p>
+            <button class="text-button" id="clear-filters" type="button" hidden>
+              <i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Réinitialiser les filtres
+            </button>
+          </div>
+
+          <div class="fruit-grid" id="fruit-grid" aria-live="polite"></div>
+
+          <div class="empty-results" id="empty-results" hidden>
+            <span><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span>
+            <h3>Aucun fruit trouvé</h3>
+            <p>Essaie un autre nom ou réinitialise les filtres.</p>
+            <button class="btn btn-secondary" id="empty-reset" type="button">Voir tous les fruits</button>
+          </div>
+
+          <div class="load-more-wrap">
+            <button class="btn btn-secondary" id="load-more" type="button">
+              Afficher plus de fruits <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="steps-section" id="comment-acheter" aria-labelledby="steps-title">
+      <div class="container">
+        <div class="section-heading centered">
+          <span class="section-kicker">SIMPLE ET HUMAIN</span>
+          <h2 id="steps-title">Comment acheter sur Itemsouq ?</h2>
+          <p>Aucun paiement n'est encaissé sur ce site. Tout est confirmé directement avec le vendeur.</p>
+        </div>
+
+        <div class="steps-grid">
+          <article class="step-card">
+            <span class="step-number">01</span>
+            <div class="step-icon violet"><i class="fa-solid fa-apple-whole" aria-hidden="true"></i></div>
+            <h3>Choisis ton fruit</h3>
+            <p>Sélectionne la version physique ou permanente et ajoute-la à ta commande.</p>
+          </article>
+          <article class="step-card">
+            <span class="step-number">02</span>
+            <div class="step-icon green"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i></div>
+            <h3>Confirme sur WhatsApp</h3>
+            <p>Le vendeur vérifie le stock, le prix final et organise un créneau de livraison.</p>
+          </article>
+          <article class="step-card">
+            <span class="step-number">03</span>
+            <div class="step-icon red"><i class="fa-solid fa-building-columns" aria-hidden="true"></i></div>
+            <h3>Paie localement</h3>
+            <p>Choisis Cash Plus ou Wafacash. Les coordonnées sont envoyées après confirmation.</p>
+          </article>
+          <article class="step-card">
+            <span class="step-number">04</span>
+            <div class="step-icon amber"><i class="fa-solid fa-gamepad" aria-hidden="true"></i></div>
+            <h3>Reçois-le en jeu</h3>
+            <p>Le vendeur effectue l'échange ou le cadeau directement dans Blox Fruits.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="trust-section" aria-labelledby="trust-title">
+      <div class="container trust-grid">
+        <div class="trust-copy">
+          <span class="section-kicker light">PAIEMENT MAROCAIN</span>
+          <h2 id="trust-title">Un parcours pensé pour le Maroc.</h2>
+          <p>Tu choisis ton moyen de paiement pendant la commande. Le vendeur t'envoie ensuite les informations exactes sur WhatsApp — jamais de code PIN, mot de passe ou OTP.</p>
+          <div class="payment-logos" aria-label="Moyens de paiement acceptés">
+            <div class="payment-logo cashplus"><span>cash</span><strong>plus</strong></div>
+            <div class="payment-logo wafacash"><i class="fa-solid fa-bolt" aria-hidden="true"></i><strong>WAFACASH</strong></div>
+          </div>
+          <ul class="trust-list">
+            <li><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Prix et disponibilité reconfirmés avant paiement</li>
+            <li><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Aucune donnée de paiement enregistrée sur le site</li>
+            <li><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Assistance humaine jusqu'à la livraison en jeu</li>
+          </ul>
+        </div>
+        <div class="trust-card">
+          <div class="trust-card-head">
+            <span><i class="fa-solid fa-receipt" aria-hidden="true"></i></span>
+            <div><small>EXEMPLE DE COMMANDE</small><strong>ISQ-DEMO-2841</strong></div>
+            <em>Démo</em>
+          </div>
+          <div class="receipt-item">
+            <span class="receipt-fruit"><img src="assets/images/fruits/dragon.webp" alt="" width="512" height="498" loading="lazy" decoding="async"></span>
+            <div><strong>Dragon</strong><small>Fruit permanent · Qté 1</small></div>
+            <b>750 MAD</b>
+          </div>
+          <div class="receipt-line"><span>Paiement préféré</span><strong>Cash Plus</strong></div>
+          <div class="receipt-line"><span>Livraison</span><strong>En jeu</strong></div>
+          <div class="receipt-total"><span>Total démo</span><strong>750 MAD</strong></div>
+          <div class="receipt-note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Le vendeur confirme toujours le total final sur WhatsApp.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="faq-section" id="faq" aria-labelledby="faq-title">
+      <div class="container faq-grid">
+        <div class="faq-intro">
+          <span class="section-kicker">BESOIN D'AIDE ?</span>
+          <h2 id="faq-title">Questions fréquentes</h2>
+          <p>Tout ce qu'il faut savoir avant de préparer ta première commande.</p>
+          <a class="btn btn-whatsapp" href="https://wa.me/?text=Salam%20Itemsouq%2C%20j%27ai%20une%20question." data-whatsapp-message="Salam Itemsouq, j'ai une question." target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i> Préparer une question</a>
+        </div>
+        <div class="faq-list">
+          <details open>
+            <summary>Quelle est la différence entre physique et permanent ? <i class="fa-solid fa-plus" aria-hidden="true"></i></summary>
+            <p>Un fruit physique est un objet numérique échangeable dans le jeu. Un fruit permanent permet de rééquiper ce fruit depuis le menu du jeu. Aucun produit n'est expédié à une adresse physique.</p>
+          </details>
+          <details>
+            <summary>Le paiement se fait-il sur le site ? <i class="fa-solid fa-plus" aria-hidden="true"></i></summary>
+            <p>Non. Le site prépare uniquement la commande. Le vendeur confirme le stock et partage les coordonnées Cash Plus ou Wafacash directement sur WhatsApp.</p>
+          </details>
+          <details>
+            <summary>Les prix affichés sont-ils définitifs ? <i class="fa-solid fa-plus" aria-hidden="true"></i></summary>
+            <p>Dans cette démonstration, les prix MAD sont indicatifs. Le prix final et la disponibilité doivent être confirmés avec le vendeur avant tout paiement.</p>
+          </details>
+          <details>
+            <summary>Itemsouq est-il affilié à Roblox ? <i class="fa-solid fa-plus" aria-hidden="true"></i></summary>
+            <p>Non. Itemsouq est un concept de marketplace indépendante et n'est affilié ni à Roblox Corporation, ni aux créateurs de Blox Fruits.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-grid">
+      <div>
+        <a class="brand footer-brand" href="#top" aria-label="Itemsouq Fruits, retour en haut">
+          <span class="brand-mark" aria-hidden="true"><img src="assets/brand/itemsouq-mark.svg" alt="" width="64" height="64" loading="lazy"></span>
+          <span class="brand-copy"><strong>ITEMSOUQ</strong><small>FRUITS MARKET</small></span>
+        </a>
+        <p>Une démonstration de marketplace marocaine pour préparer des commandes de fruits Blox Fruits sur WhatsApp.</p>
+      </div>
+      <div>
+        <h3>Boutique</h3>
+        <a href="#catalogue">Tous les fruits</a>
+        <a href="#catalogue" data-footer-mode="physical">Fruits physiques</a>
+        <a href="#catalogue" data-footer-mode="permanent">Fruits permanents</a>
+        <a href="trading.html">Trading communautaire</a>
+      </div>
+      <div>
+        <h3>Aide</h3>
+        <a href="#comment-acheter">Comment acheter</a>
+        <a href="#faq">Questions fréquentes</a>
+        <a href="https://blox-fruits.fandom.com/wiki/Blox_Fruits" target="_blank" rel="noopener">Source des valeurs</a>
+      </div>
+      <div>
+        <h3>Important</h3>
+        <p class="footer-small">Démo uniquement. Ne partage jamais ton mot de passe Roblox, ton PIN, un OTP ou des informations bancaires sensibles.</p>
+      </div>
+    </div>
+    <div class="container footer-bottom">
+      <span>© 2026 Itemsouq · Concept de démonstration</span>
+      <span>Non affilié à Roblox ou Blox Fruits</span>
+    </div>
+  </footer>
+
+  <a class="whatsapp-fab whatsapp-general" href="https://wa.me/?text=Salam%20Itemsouq%2C%20je%20veux%20commander%20un%20fruit." data-whatsapp-message="Salam Itemsouq, je veux commander un fruit." target="_blank" rel="noopener" aria-label="Préparer une demande dans WhatsApp">
+    <i class="fa-brands fa-whatsapp" aria-hidden="true"></i>
+    <span>WhatsApp</span>
+  </a>
+
+  <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+  <aside class="cart-drawer" id="cart-drawer" role="dialog" aria-modal="true" aria-labelledby="cart-title" hidden>
+    <div class="drawer-head">
+      <div>
+        <span class="drawer-kicker">COMMANDE LOCALE</span>
+        <h2 id="cart-title">Ma commande <span id="drawer-count">0</span></h2>
+      </div>
+      <button class="drawer-close" type="button" aria-label="Fermer la commande"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+    </div>
+    <div class="drawer-body" id="cart-items"></div>
+    <div class="drawer-empty" id="cart-empty">
+      <span><i class="fa-solid fa-bag-shopping" aria-hidden="true"></i></span>
+      <h3>Ta commande est vide</h3>
+      <p>Ajoute un fruit depuis le catalogue pour commencer.</p>
+      <button class="btn btn-secondary drawer-browse" type="button">Voir les fruits</button>
+    </div>
+    <div class="drawer-footer" id="cart-footer" hidden>
+      <div class="demo-price-note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Total indicatif à confirmer sur WhatsApp.</div>
+      <div class="drawer-total"><span>Total démo</span><strong id="cart-total">0 MAD</strong></div>
+      <button class="btn btn-primary btn-full" id="checkout-open" type="button">Préparer sur WhatsApp <i class="fa-brands fa-whatsapp" aria-hidden="true"></i></button>
+      <button class="clear-cart" id="clear-cart" type="button">Vider la commande</button>
+    </div>
+  </aside>
+
+  <div class="modal-shell" id="checkout-modal" role="dialog" aria-modal="true" aria-labelledby="checkout-title" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <span class="drawer-kicker">DERNIÈRE ÉTAPE</span>
+          <h2 id="checkout-title">Préparer la demande</h2>
+        </div>
+        <button class="modal-close" type="button" aria-label="Fermer"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+      </div>
+      <form id="checkout-form" novalidate>
+        <div class="modal-body">
+          <div class="checkout-notice"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i><p><strong>Aucun paiement ici.</strong> Ce formulaire prépare seulement un message WhatsApp. Le vendeur te répondra avant tout paiement.</p></div>
+
+          <div class="form-grid">
+            <div class="field-group">
+              <label for="buyer-name">Prénom</label>
+              <input id="buyer-name" name="buyerName" type="text" required maxlength="40" placeholder="Ex. Youssef" autocomplete="given-name" aria-describedby="buyer-name-error">
+              <span class="field-error" id="buyer-name-error" data-error-for="buyer-name" aria-live="polite"></span>
+            </div>
+            <div class="field-group">
+              <label for="roblox-username">Pseudo Roblox</label>
+              <input id="roblox-username" name="robloxUsername" type="text" required maxlength="30" placeholder="Ex. Youssef_RBX" autocomplete="off" aria-describedby="roblox-username-error">
+              <span class="field-error" id="roblox-username-error" data-error-for="roblox-username" aria-live="polite"></span>
+            </div>
+          </div>
+
+          <fieldset class="payment-fieldset" id="payment-fieldset" aria-describedby="payment-error">
+            <legend>Moyen de paiement préféré</legend>
+            <label class="payment-choice">
+              <input type="radio" name="payment" value="Cash Plus" required>
+              <span class="choice-check"><i class="fa-solid fa-check" aria-hidden="true"></i></span>
+              <span class="choice-logo cashplus-mini">cash<strong>plus</strong></span>
+              <span><strong>Cash Plus</strong><small>Coordonnées envoyées sur WhatsApp</small></span>
+            </label>
+            <label class="payment-choice">
+              <input type="radio" name="payment" value="Wafacash" required>
+              <span class="choice-check"><i class="fa-solid fa-check" aria-hidden="true"></i></span>
+              <span class="choice-logo wafacash-mini"><i class="fa-solid fa-bolt" aria-hidden="true"></i></span>
+              <span><strong>Wafacash</strong><small>Coordonnées envoyées sur WhatsApp</small></span>
+            </label>
+            <span class="field-error" id="payment-error" data-error-for="payment" aria-live="polite"></span>
+          </fieldset>
+
+          <div class="order-preview" id="order-preview"></div>
+          <p class="privacy-note"><i class="fa-solid fa-lock" aria-hidden="true"></i> Tes informations ne sont pas enregistrées dans ce navigateur.</p>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-secondary modal-cancel" type="button">Retour</button>
+          <button class="btn btn-whatsapp" type="submit"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i> Ouvrir WhatsApp</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true" hidden>
+    <span class="toast-icon"><i class="fa-solid fa-check" aria-hidden="true"></i></span>
+    <span id="toast-message">Ajouté à ta commande</span>
+  </div>
+
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/fruits.js"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>

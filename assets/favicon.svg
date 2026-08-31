@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="Itemsouq">
+  <defs>
+    <linearGradient id="tile" x1="8" y1="6" x2="56" y2="59" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8A68FF"/>
+      <stop offset=".52" stop-color="#6D4AFF"/>
+      <stop offset="1" stop-color="#4B2AC8"/>
+    </linearGradient>
+    <linearGradient id="fruit" x1="20" y1="23" x2="45" y2="54" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F1EEFF"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="18" fill="url(#tile)"/>
+  <path d="M35.7 17.5c2.1-6 7.3-9.2 13.5-8.1-.5 6.3-4.6 10.5-11.1 11.1Z" fill="#18C77A"/>
+  <path d="M32.1 22.8c.1-4.4 1.7-8 4.8-10.9" fill="none" stroke="#EF4B58" stroke-width="2.8" stroke-linecap="round"/>
+  <path d="M20.1 24.4h3.7c1.8-4.2 4.6-6.4 8.2-6.4 3.7 0 6.5 2.2 8.3 6.4h3.6c3.1 0 5.6 2.5 5.6 5.6v16.1c0 5.4-4.4 9.8-9.8 9.8H24.3c-5.4 0-9.8-4.4-9.8-9.8V30c0-3.1 2.5-5.6 5.6-5.6Z" fill="url(#fruit)"/>
+  <path d="M25.1 28.7v-3.3c0-4 3.1-7.2 6.9-7.2s6.9 3.2 6.9 7.2v3.3" fill="none" stroke="#6243DF" stroke-width="3.3" stroke-linecap="round"/>
+  <path d="m32 33.9 1.6 3.6 3.5-1.6-1.6 3.5 3.6 1.6-3.6 1.6 1.6 3.5-3.5-1.6-1.6 3.6-1.6-3.6-3.5 1.6 1.6-3.5-3.6-1.6 3.6-1.6-1.6-3.5 3.5 1.6Z" fill="#6D4AFF"/>
+  <circle cx="32" cy="41" r="2.25" fill="#18B96F"/>
+</svg>
