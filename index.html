@@ -12,13 +12,14 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="assets/css/features.css">
 </head>
-<body>
+<body class="home-page">
   <a class="skip-link" href="#catalogue">Aller au catalogue</a>
 
   <div class="announcement">
     <div class="container announcement-inner">
-      <span><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Commande vérifiée manuellement sur WhatsApp</span>
+      <span><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> <span data-i18n="announcement.safe">Commande vérifiée manuellement sur WhatsApp</span></span>
       <span class="announcement-payments">Cash Plus <b>·</b> Wafacash <b>·</b> Livraison en jeu</span>
     </div>
   </div>
@@ -34,14 +35,22 @@
       </a>
 
       <nav class="desktop-nav" aria-label="Navigation principale">
-        <a href="#top">Accueil</a>
-        <a href="#catalogue">Catalogue</a>
-        <a href="trading.html">Trading</a>
-        <a href="#comment-acheter">Comment acheter</a>
-        <a href="#faq">FAQ</a>
+        <a href="#top" data-i18n="nav.home" aria-current="page">Accueil</a>
+        <a href="#catalogue" data-i18n="nav.catalogue">Catalogue</a>
+        <a href="trading.html" data-i18n="nav.trading">Trading</a>
+        <a href="#comment-acheter" data-i18n="nav.how">Comment acheter</a>
+        <a href="#faq" data-i18n="nav.faq">FAQ</a>
       </nav>
 
       <div class="header-actions">
+        <button class="icon-action language-toggle" type="button" data-language-toggle aria-label="Afficher le site en Darija" aria-pressed="false">
+          <i class="fa-solid fa-language" aria-hidden="true"></i>
+          <span data-language-label>FR</span>
+        </button>
+        <button class="icon-action souq-trigger" type="button" aria-label="Ouvrir Mon Souq" aria-controls="souq-drawer" aria-expanded="false">
+          <i class="fa-solid fa-store" aria-hidden="true"></i>
+          <span class="action-count" id="souq-count" hidden>0</span>
+        </button>
         <button class="icon-action favorites-trigger" type="button" aria-label="Afficher mes favoris">
           <i class="fa-regular fa-heart" aria-hidden="true"></i>
           <span class="action-count" id="favorite-count" hidden>0</span>
@@ -58,11 +67,11 @@
     </div>
 
     <nav class="mobile-menu" id="mobile-menu" aria-label="Navigation mobile" hidden>
-      <a href="#top"><i class="fa-solid fa-house" aria-hidden="true"></i> Accueil</a>
-      <a href="#catalogue"><i class="fa-solid fa-store" aria-hidden="true"></i> Catalogue</a>
-      <a href="trading.html"><i class="fa-solid fa-right-left" aria-hidden="true"></i> Trading</a>
-      <a href="#comment-acheter"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Comment acheter</a>
-      <a href="#faq"><i class="fa-solid fa-comments" aria-hidden="true"></i> FAQ</a>
+      <a href="#top"><i class="fa-solid fa-house" aria-hidden="true"></i> <span data-i18n="nav.home">Accueil</span></a>
+      <a href="#catalogue"><i class="fa-solid fa-store" aria-hidden="true"></i> <span data-i18n="nav.catalogue">Catalogue</span></a>
+      <a href="trading.html"><i class="fa-solid fa-right-left" aria-hidden="true"></i> <span data-i18n="nav.trading">Trading</span></a>
+      <a href="#comment-acheter"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> <span data-i18n="nav.how">Comment acheter</span></a>
+      <a href="#faq"><i class="fa-solid fa-comments" aria-hidden="true"></i> <span data-i18n="nav.faq">FAQ</span></a>
     </nav>
   </header>
 
@@ -72,16 +81,16 @@
       <div class="hero-orb hero-orb-two" aria-hidden="true"></div>
       <div class="container hero-grid">
         <div class="hero-copy">
-          <div class="eyebrow"><span class="live-dot"></span> Marketplace marocain · Démo</div>
-          <h1 id="hero-title">Tes fruits préférés,<br><span>livrés en jeu.</span></h1>
-          <p>Choisis un fruit physique ou permanent, confirme ton prix en dirhams et finalise ta commande avec un vendeur sur WhatsApp.</p>
+          <div class="eyebrow"><span class="live-dot"></span> <span data-i18n="hero.eyebrow">Marketplace marocain · Démo</span></div>
+          <h1 id="hero-title" data-i18n-html="hero.title">Tes fruits préférés,<br><span>livrés en jeu.</span></h1>
+          <p data-i18n="hero.copy">Choisis un fruit physique ou permanent, confirme ton prix en dirhams et finalise ta commande avec un vendeur sur WhatsApp.</p>
 
           <div class="hero-actions">
             <a class="btn btn-primary btn-large" href="#catalogue">
-              Explorer les fruits <i class="fa-solid fa-arrow-down" aria-hidden="true"></i>
+              <span data-i18n="hero.explore">Explorer les fruits</span> <i class="fa-solid fa-arrow-down" aria-hidden="true"></i>
             </a>
             <a class="btn btn-whatsapp btn-large whatsapp-general" href="https://wa.me/?text=Salam%20Itemsouq%2C%20je%20veux%20des%20informations%20sur%20vos%20fruits." data-whatsapp-message="Salam Itemsouq, je veux des informations sur vos fruits." target="_blank" rel="noopener">
-              <i class="fa-brands fa-whatsapp" aria-hidden="true"></i> Ouvrir WhatsApp
+              <i class="fa-brands fa-whatsapp" aria-hidden="true"></i> <span data-i18n="hero.whatsapp">Ouvrir WhatsApp</span>
             </a>
           </div>
 
@@ -140,9 +149,9 @@
       <div class="container">
         <div class="section-heading catalogue-heading">
           <div>
-            <span class="section-kicker">LA BOUTIQUE</span>
-            <h2 id="catalogue-title">Trouve ton prochain fruit</h2>
-            <p>Les images, valeurs Beli et valeurs Robux viennent du wiki. Les prix MAD affichés sont des prix de démonstration à confirmer avec le vendeur.</p>
+            <span class="section-kicker" data-i18n="catalogue.kicker">LA BOUTIQUE</span>
+            <h2 id="catalogue-title" data-i18n="catalogue.title">Trouve ton prochain fruit</h2>
+            <p data-i18n="catalogue.copy">Les images, valeurs Beli et valeurs Robux viennent du wiki. Les prix MAD affichés sont des prix de démonstration à confirmer avec le vendeur.</p>
           </div>
           <a class="source-link" href="https://blox-fruits.fandom.com/wiki/Blox_Fruits" target="_blank" rel="noopener">
             <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i> Source des images et valeurs
@@ -165,7 +174,7 @@
             <label class="search-control">
               <span class="sr-only">Rechercher un fruit</span>
               <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-              <input id="fruit-search" type="search" placeholder="Rechercher Dragon, Buddha…" autocomplete="off">
+              <input id="fruit-search" type="search" placeholder="Rechercher Dragon, Buddha…" data-i18n-placeholder="catalogue.search" autocomplete="off">
               <kbd>⌘ K</kbd>
             </label>
 
@@ -203,6 +212,24 @@
               </select>
               <i class="fa-solid fa-arrow-down-wide-short" aria-hidden="true"></i>
             </label>
+          </div>
+
+          <div class="budget-finder" aria-labelledby="budget-title">
+            <div class="budget-copy">
+              <span class="budget-icon"><i class="fa-solid fa-wallet" aria-hidden="true"></i></span>
+              <span><strong id="budget-title" data-i18n="budget.title">Ton budget démo</strong><small>Filtre instantanément les prix en dirhams.</small></span>
+            </div>
+            <div class="budget-control">
+              <label for="budget-range" class="sr-only">Budget maximal en dirhams</label>
+              <input id="budget-range" type="range" min="10" max="800" step="5" value="800">
+              <output id="budget-output" for="budget-range">Tous les budgets</output>
+            </div>
+            <div class="budget-presets" aria-label="Budgets rapides">
+              <button type="button" data-budget="50">50 MAD</button>
+              <button type="button" data-budget="100">100 MAD</button>
+              <button type="button" data-budget="200">200 MAD</button>
+              <button type="button" data-budget="all" class="active">Tous</button>
+            </div>
           </div>
 
           <div class="catalogue-meta">
@@ -370,6 +397,22 @@
     <span>WhatsApp</span>
   </a>
 
+  <nav class="mobile-bottom-nav" aria-label="Navigation rapide">
+    <a href="#top" class="active" aria-current="page"><i class="fa-solid fa-house" aria-hidden="true"></i><span data-i18n="mobile.home">Accueil</span></a>
+    <a href="#catalogue"><i class="fa-solid fa-store" aria-hidden="true"></i><span data-i18n="mobile.shop">Boutique</span></a>
+    <a href="trading.html"><i class="fa-solid fa-right-left" aria-hidden="true"></i><span data-i18n="mobile.trade">Trading</span></a>
+    <button type="button" data-mobile-souq aria-label="Ouvrir Mon Souq" aria-controls="souq-drawer" aria-expanded="false"><i class="fa-solid fa-user" aria-hidden="true"></i><span data-i18n="mobile.souq">Mon Souq</span><b id="mobile-souq-count" role="status" aria-live="polite" hidden>0</b></button>
+    <button type="button" data-mobile-cart aria-label="Ouvrir ma commande" aria-controls="cart-drawer" aria-expanded="false"><i class="fa-solid fa-bag-shopping" aria-hidden="true"></i><span data-i18n="mobile.order">Commande</span><b id="mobile-cart-count" role="status" aria-live="polite" hidden>0</b></button>
+  </nav>
+
+  <section class="compare-tray" id="compare-tray" aria-label="Fruits sélectionnés pour comparaison" hidden>
+    <div class="compare-tray-items" id="compare-tray-items"></div>
+    <div class="compare-tray-actions">
+      <span id="compare-tray-help" role="status" aria-live="polite">Ajoute encore un fruit</span>
+      <button class="btn btn-primary" id="compare-open" type="button" disabled><i class="fa-solid fa-code-compare" aria-hidden="true"></i> <span>Comparer (0)</span></button>
+    </div>
+  </section>
+
   <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
   <aside class="cart-drawer" id="cart-drawer" role="dialog" aria-modal="true" aria-labelledby="cart-title" hidden>
     <div class="drawer-head">
@@ -379,6 +422,11 @@
       </div>
       <button class="drawer-close" type="button" aria-label="Fermer la commande"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
     </div>
+    <ol class="order-stepper" id="cart-stepper" aria-label="Progression de la commande">
+      <li class="active" data-order-step="1"><span>1</span><small data-i18n="order.step.selection">Sélection</small></li>
+      <li data-order-step="2"><span>2</span><small data-i18n="order.step.details">Préférences</small></li>
+      <li data-order-step="3"><span>3</span><small data-i18n="order.step.whatsapp">WhatsApp</small></li>
+    </ol>
     <div class="drawer-body" id="cart-items"></div>
     <div class="drawer-empty" id="cart-empty">
       <span><i class="fa-solid fa-bag-shopping" aria-hidden="true"></i></span>
@@ -403,6 +451,11 @@
         </div>
         <button class="modal-close" type="button" aria-label="Fermer"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
       </div>
+      <ol class="order-stepper modal-stepper" id="checkout-stepper" aria-label="Progression de la commande">
+        <li class="complete" data-order-step="1"><span><i class="fa-solid fa-check" aria-hidden="true"></i></span><small data-i18n="order.step.selection">Sélection</small></li>
+        <li class="active" data-order-step="2"><span>2</span><small data-i18n="order.step.details">Préférences</small></li>
+        <li data-order-step="3"><span>3</span><small data-i18n="order.step.whatsapp">WhatsApp</small></li>
+      </ol>
       <form id="checkout-form" novalidate>
         <div class="modal-body">
           <div class="checkout-notice"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i><p><strong>Aucun paiement ici.</strong> Ce formulaire prépare seulement un message WhatsApp. Le vendeur te répondra avant tout paiement.</p></div>
@@ -448,6 +501,59 @@
     </div>
   </div>
 
+  <div class="feature-backdrop" id="souq-backdrop" hidden></div>
+  <aside class="souq-drawer" id="souq-drawer" role="dialog" aria-modal="true" aria-labelledby="souq-title" hidden>
+    <div class="drawer-head souq-head">
+      <div>
+        <span class="drawer-kicker" data-i18n="souq.kicker">TON ESPACE LOCAL</span>
+        <h2 id="souq-title" data-i18n="souq.title">Mon Souq</h2>
+        <p data-i18n="souq.subtitle">Tes choix restent uniquement dans ce navigateur.</p>
+      </div>
+      <button class="souq-close" type="button" aria-label="Fermer Mon Souq"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+    </div>
+    <div class="souq-body">
+      <div class="souq-stats" id="souq-stats"></div>
+      <section class="souq-section" aria-labelledby="souq-recent-title">
+        <div class="souq-section-head"><h3 id="souq-recent-title" data-i18n="souq.recent">Vus récemment</h3><button type="button" data-clear-recent>Effacer</button></div>
+        <div class="souq-mini-grid" id="souq-recent"></div>
+      </section>
+      <section class="souq-section" aria-labelledby="souq-favorites-title">
+        <div class="souq-section-head"><h3 id="souq-favorites-title" data-i18n="souq.favorites">Favoris</h3><button type="button" data-view-favorites>Voir tout</button></div>
+        <div class="souq-mini-grid" id="souq-favorites"></div>
+      </section>
+      <section class="souq-section souq-preferences" aria-labelledby="souq-preferences-title">
+        <div class="souq-section-head"><h3 id="souq-preferences-title" data-i18n="souq.preferences">Mes préférences</h3></div>
+        <form id="souq-preferences-form">
+          <label><span data-i18n="souq.payment">Paiement préféré</span><select id="souq-payment" name="payment"><option value="">À choisir plus tard</option><option value="Cash Plus">Cash Plus</option><option value="Wafacash">Wafacash</option></select></label>
+          <label><span data-i18n="souq.city">Ville</span><select id="souq-city" name="city"><option value="">Non précisée</option><option>Casablanca</option><option>Rabat</option><option>Marrakech</option><option>Fès</option><option>Tanger</option><option>Agadir</option><option>Oujda</option><option>Meknès</option><option>Autre</option></select></label>
+          <div class="souq-language-row"><span>Langue de l’interface</span><button class="language-choice" type="button" data-language-toggle><i class="fa-solid fa-language" aria-hidden="true"></i> <span data-language-label>FR</span></button></div>
+          <button class="btn btn-primary btn-full" type="submit"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> <span data-i18n="souq.save">Enregistrer</span></button>
+        </form>
+      </section>
+    </div>
+  </aside>
+
+  <div class="modal-shell feature-modal" id="quick-view-modal" role="dialog" aria-modal="true" aria-labelledby="quick-view-title" hidden>
+    <div class="modal-card quick-view-card">
+      <div class="modal-head">
+        <div><span class="drawer-kicker" data-i18n="quick.kicker">APERÇU DU FRUIT</span><h2 id="quick-view-title" tabindex="-1">Fruit</h2></div>
+        <button class="feature-modal-close" type="button" data-close-quick-view aria-label="Fermer"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+      </div>
+      <div class="quick-view-body" id="quick-view-body"></div>
+    </div>
+  </div>
+
+  <div class="modal-shell feature-modal" id="compare-modal" role="dialog" aria-modal="true" aria-labelledby="compare-title" hidden>
+    <div class="modal-card compare-modal-card">
+      <div class="modal-head">
+        <div><span class="drawer-kicker">DÉCISION RAPIDE</span><h2 id="compare-title" tabindex="-1" data-i18n="compare.title">Comparer les fruits</h2></div>
+        <button class="feature-modal-close" type="button" data-close-compare aria-label="Fermer"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+      </div>
+      <div class="compare-modal-body" id="compare-modal-body"></div>
+      <div class="modal-foot compare-modal-foot"><button class="btn btn-secondary" id="compare-clear" type="button"><i class="fa-solid fa-trash-can" aria-hidden="true"></i> <span data-i18n="compare.clear">Tout retirer</span></button></div>
+    </div>
+  </div>
+
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true" hidden>
     <span class="toast-icon"><i class="fa-solid fa-check" aria-hidden="true"></i></span>
     <span id="toast-message">Ajouté à ta commande</span>
@@ -455,6 +561,7 @@
 
   <script src="assets/js/config.js"></script>
   <script src="assets/js/fruits.js"></script>
+  <script src="assets/js/locale.js"></script>
   <script src="assets/js/app.js"></script>
 </body>
 </html>

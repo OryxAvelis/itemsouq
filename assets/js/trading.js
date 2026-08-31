@@ -3,9 +3,12 @@
   'use strict';
 
   const fruits = Array.isArray(window.ITEMSOUQ_FRUITS) ? window.ITEMSOUQ_FRUITS : [];
+  const i18n = window.ITEMSOUQ_I18N;
+  const l = (key, fallback, variables) => i18n?.t(key, fallback, variables) ?? fallback;
   const STORAGE = {
     trades: 'itemsouq:trading:v3:listings',
-    saved: 'itemsouq:trading:v3:saved'
+    saved: 'itemsouq:trading:v3:saved',
+    draft: 'itemsouq:trading:v3:draft'
   };
   const MAX_FRUITS = 4;
   const USERNAME_PATTERN = /^[A-Za-z0-9_]{3,20}$/;
@@ -17,6 +20,7 @@
     Legendary: 'Légendaire',
     Mythical: 'Mythique'
   };
+  const rarityLabel = (rarity) => l(`rarity.${rarity}`, rarityLabels[rarity] || rarity);
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -45,6 +49,7 @@
   let returnFocus = null;
   let toastTimer = null;
   let isSubmitting = false;
+  let createDraft = null;
 
   function escapeHtml(value) {
     return String(value)
@@ -259,6 +264,23 @@
     return result;
   }
 
+  function sanitizeDraft(input) {
+    if (!input || typeof input !== 'object') return null;
+    const mode = input.mode === 'permanent' ? 'permanent' : 'physical';
+    const offered = sanitizeLines(Array.isArray(input.offered) ? input.offered.map((fruitId) => ({ fruitId, quantity: 1 })) : [], mode)
+      .map((line) => line.fruitId);
+    const offeredIds = new Set(offered);
+    const wanted = sanitizeLines(Array.isArray(input.wanted) ? input.wanted.map((fruitId) => ({ fruitId, quantity: 1 })) : [], mode)
+      .map((line) => line.fruitId)
+      .filter((fruitId) => !offeredIds.has(fruitId));
+    const username = typeof input.username === 'string' ? input.username.slice(0, 20) : '';
+    const note = typeof input.note === 'string' ? input.note.slice(0, 180) : '';
+    const savedAt = new Date(input.savedAt);
+    if (Number.isNaN(savedAt.getTime())) return null;
+    if (!username.trim() && !note.trim() && !offered.length && !wanted.length) return null;
+    return { username, mode, offered, wanted, note, savedAt: savedAt.toISOString() };
+  }
+
   function hydrateState() {
     const storedTrades = safeJsonRead(STORAGE.trades, null);
     const cleanTrades = sanitizeTrades(storedTrades);
@@ -269,6 +291,8 @@
     state.saved = new Set(Array.isArray(storedSaved)
       ? storedSaved.filter((id) => typeof id === 'string' && validIds.has(id))
       : []);
+
+    createDraft = sanitizeDraft(safeJsonRead(STORAGE.draft, null));
 
     persistTrades();
     persistSaved();
@@ -288,8 +312,8 @@
 
   function modeCopy(mode) {
     return mode === 'permanent'
-      ? { label: 'Permanent', icon: 'fa-infinity', unit: 'Robux' }
-      : { label: 'Physique', icon: 'fa-box-open', unit: 'Beli' };
+      ? { label: l('trading.mode.permanent', 'Permanent'), icon: 'fa-infinity', unit: 'Robux' }
+      : { label: l('trading.mode.physical', 'Physique'), icon: 'fa-box-open', unit: 'Beli' };
   }
 
   function valueFor(fruit, mode) {
@@ -319,13 +343,13 @@
   function formatRelative(isoDate) {
     const date = new Date(isoDate);
     const seconds = Math.max(0, Math.round((Date.now() - date.getTime()) / 1000));
-    if (seconds < 60) return 'à l’instant';
+    if (seconds < 60) return l('trading.now', 'à l’instant');
     const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `il y a ${minutes} min`;
+    if (minutes < 60) return l('trading.minutesAgo', `il y a ${minutes} min`, { count: minutes });
     const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `il y a ${hours} h`;
+    if (hours < 24) return l('trading.hoursAgo', `il y a ${hours} h`, { count: hours });
     const days = Math.floor(hours / 24);
-    return `il y a ${days} j`;
+    return l('trading.daysAgo', `il y a ${days} j`, { count: days });
   }
 
   function fullDate(isoDate) {
@@ -341,8 +365,14 @@
     if (!toast) return;
     byId('trade-toast-message').textContent = message;
     const icon = $('.toast-icon i', toast);
-    icon.className = `fa-solid ${type === 'warning' ? 'fa-triangle-exclamation' : 'fa-check'}`;
+    const iconName = type === 'warning'
+      ? 'fa-triangle-exclamation'
+      : type === 'info'
+        ? 'fa-share-nodes'
+        : 'fa-check';
+    icon.className = `fa-solid ${iconName}`;
     toast.classList.toggle('warning', type === 'warning');
+    toast.classList.toggle('info', type === 'info');
     toast.hidden = false;
     window.clearTimeout(toastTimer);
     toastTimer = window.setTimeout(() => { toast.hidden = true; }, 3200);
@@ -362,7 +392,7 @@
       return `
         <div class="trade-fruit-mini">
           <span class="trade-fruit-mini-img"><img src="${fruitImagePath(fruit)}" alt="" width="512" height="512" loading="lazy" decoding="async">${quantity}</span>
-          <span><strong>${escapeHtml(fruit.name)}</strong><small>${escapeHtml(rarityLabels[fruit.rarity] || fruit.rarity)} · ${formatValue(valueFor(fruit, mode) * line.quantity, mode)}</small></span>
+          <span><strong>${escapeHtml(fruit.name)}</strong><small>${escapeHtml(rarityLabel(fruit.rarity))} · ${formatValue(valueFor(fruit, mode) * line.quantity, mode)}</small></span>
         </div>`;
     }).join('');
   }
@@ -371,9 +401,9 @@
     const offered = side === 'give';
     return `
       <div class="trade-side">
-        <span class="trade-side-label ${offered ? 'give' : 'want'}"><i class="fa-solid ${offered ? 'fa-arrow-up' : 'fa-arrow-down'}" aria-hidden="true"></i>${offered ? 'Propose' : 'Recherche'}</span>
+        <span class="trade-side-label ${offered ? 'give' : 'want'}"><i class="fa-solid ${offered ? 'fa-arrow-up' : 'fa-arrow-down'}" aria-hidden="true"></i>${offered ? l('trading.give', 'Propose') : l('trading.want', 'Recherche')}</span>
         <div class="trade-fruit-stack">${fruitRows(lines, mode)}</div>
-        <div class="trade-side-value"><span>Valeur wiki</span><strong>${formatValue(linesValue(lines, mode), mode)}</strong></div>
+        <div class="trade-side-value"><span>${l('trading.wikiValue', 'Valeur wiki')}</span><strong>${formatValue(linesValue(lines, mode), mode)}</strong></div>
       </div>`;
   }
 
@@ -417,7 +447,7 @@
           <span class="trade-card-user"><strong>${escapeHtml(trade.username)}</strong><small title="${escapeHtml(fullDate(trade.createdAt))}">${escapeHtml(formatRelative(trade.createdAt))}</small></span>
           <span class="trade-card-head-meta">
             <span class="trade-card-format"><i class="fa-solid ${mode.icon}" aria-hidden="true"></i>${mode.label}</span>
-            <span class="trade-status${trade.status === 'completed' ? ' completed' : ''}"><i class="fa-solid fa-circle" aria-hidden="true"></i>${trade.status === 'completed' ? 'Terminée' : 'Ouverte'}</span>
+            <span class="trade-status${trade.status === 'completed' ? ' completed' : ''}"><i class="fa-solid fa-circle" aria-hidden="true"></i>${trade.status === 'completed' ? l('trading.status.completed', 'Terminée') : l('trading.status.open', 'Ouverte')}</span>
           </span>
           <button class="trade-save-button${saved ? ' active' : ''}" type="button" data-save-trade="${escapeHtml(trade.id)}" aria-label="${saved ? 'Retirer' : 'Ajouter'} l'offre de ${escapeHtml(trade.username)} ${saved ? 'des' : 'aux'} sauvegardées" aria-pressed="${saved}">
             <i class="fa-${saved ? 'solid' : 'regular'} fa-bookmark" aria-hidden="true"></i>
@@ -431,8 +461,8 @@
         ${trade.note ? `<p class="trade-card-note"><i class="fa-regular fa-message" aria-hidden="true"></i>${escapeHtml(trade.note)}</p>` : ''}
         <footer class="trade-card-footer">
           <span class="trade-response-count"><i class="fa-regular fa-comments" aria-hidden="true"></i>${pluralize(responses, 'contre-offre', 'contre-offres')}</span>
-          <button class="btn btn-secondary" type="button" data-share-trade="${escapeHtml(trade.id)}" aria-label="Partager l'offre de ${escapeHtml(trade.username)}"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i> Partager</button>
-          <button class="btn btn-primary" type="button" data-view-trade="${escapeHtml(trade.id)}" aria-haspopup="dialog" aria-controls="trade-detail-modal">${trade.owned ? 'Gérer' : trade.status === 'open' ? 'Préparer une offre' : 'Voir'} <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></button>
+          <button class="btn btn-secondary trade-share-button" type="button" data-share-trade="${escapeHtml(trade.id)}" aria-label="${l('trading.share', "Partager l’offre")} ${escapeHtml(trade.username)}"><i class="fa-solid fa-share-nodes" aria-hidden="true"></i> ${l('trading.shareShort', 'Partager')}</button>
+          <button class="btn btn-primary" type="button" data-view-trade="${escapeHtml(trade.id)}" aria-haspopup="dialog" aria-controls="trade-detail-modal">${trade.owned ? l('trading.manage', 'Gérer') : trade.status === 'open' ? l('trading.prepare', 'Préparer une offre') : l('trading.view', 'Voir')} <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></button>
         </footer>
       </article>`;
   }
@@ -446,7 +476,7 @@
     byId('saved-trades-count').textContent = state.saved.size;
     byId('open-trades-stat').textContent = open;
     byId('counteroffers-stat').textContent = counteroffers;
-    byId('trade-results-count').textContent = `${pluralize(filteredCount, 'offre affichée', 'offres affichées')} · données locales`;
+    byId('trade-results-count').textContent = l('trading.localResults', `${pluralize(filteredCount, 'offre affichée', 'offres affichées')} · données locales`, { count: pluralize(filteredCount, 'offre affichée', 'offres affichées') });
   }
 
   function hasActiveFilters() {
@@ -527,7 +557,7 @@
     if (!container) return;
     const selected = pickerSelection(kind);
     if (!selected.size) {
-      container.innerHTML = '<span>Aucun fruit sélectionné</span>';
+      container.innerHTML = `<span>${l('trading.noneSelected', 'Aucun fruit sélectionné')}</span>`;
       return;
     }
     container.innerHTML = [...selected].map((fruitId) => {
@@ -551,7 +581,7 @@
     const matches = fruits.filter((fruit) => !normalized || fruit.name.toLocaleLowerCase('fr').includes(normalized));
 
     if (!matches.length) {
-      container.innerHTML = '<p class="picker-no-results">Aucun fruit trouvé.</p>';
+      container.innerHTML = `<p class="picker-no-results">${l('trading.noneFound', 'Aucun fruit trouvé.')}</p>`;
       renderSelected(kind);
       return;
     }
@@ -566,7 +596,7 @@
       return `
         <button class="fruit-picker-option" type="button" data-picker="${kind}" data-fruit-id="${escapeHtml(fruitId)}" aria-pressed="${isSelected}" tabindex="${isTabStop ? '0' : '-1'}" ${isUnavailable ? 'disabled' : ''}>
           <img src="${fruitImagePath(fruit)}" alt="" width="512" height="512" loading="lazy" decoding="async">
-          <span><strong>${escapeHtml(fruit.name)}</strong><small>${escapeHtml(rarityLabels[fruit.rarity] || fruit.rarity)}</small></span>
+          <span><strong>${escapeHtml(fruit.name)}</strong><small>${escapeHtml(rarityLabel(fruit.rarity))}</small></span>
           <i class="picker-check fa-solid fa-check" aria-hidden="true"></i>
         </button>`;
     }).join('');
@@ -640,7 +670,7 @@
   }
 
   function setPageInert(inert) {
-    ['.announcement', '.site-header', 'main', '.site-footer'].forEach((selector) => {
+    ['.announcement', '.site-header', 'main', '.site-footer', '.mobile-bottom-nav'].forEach((selector) => {
       const element = $(selector);
       if (element) element.inert = inert;
     });
@@ -651,6 +681,7 @@
     if (activeModal && activeModal !== modal) closeModal(activeModal, false);
     returnFocus = trigger || document.activeElement;
     activeModal = modal;
+    if (modal.id === 'create-trade-modal') $$('[data-open-create]').forEach((item) => item.setAttribute('aria-expanded', 'true'));
     modal.hidden = false;
     document.body.classList.add('overlay-open');
     setPageInert(true);
@@ -660,6 +691,7 @@
     if (!modal || modal.hidden) return;
     modal.hidden = true;
     activeModal = null;
+    if (modal.id === 'create-trade-modal') $$('[data-open-create]').forEach((item) => item.setAttribute('aria-expanded', 'false'));
     document.body.classList.remove('overlay-open');
     setPageInert(false);
     const preferred = returnFocus;
@@ -680,7 +712,12 @@
           const stableHeaderAction = $('.site-header [data-open-create]');
           if (isUsable(stableHeaderAction)) focusTarget = stableHeaderAction;
         }
-        focusTarget?.focus();
+        if (focusTarget) {
+          focusTarget.focus({ preventScroll: true });
+          if (document.activeElement !== focusTarget) {
+            window.setTimeout(() => focusTarget.focus({ preventScroll: true }), 0);
+          }
+        }
       });
     }
   }
@@ -695,8 +732,88 @@
     renderAllPickers();
   }
 
+  function createDraftSnapshot() {
+    return {
+      username: byId('trade-username').value.slice(0, 20),
+      mode: byId('trade-mode').value === 'permanent' ? 'permanent' : 'physical',
+      offered: [...state.create.offered],
+      wanted: [...state.create.wanted],
+      note: byId('trade-note').value.slice(0, 180),
+      savedAt: new Date().toISOString()
+    };
+  }
+
+  function updateDraftPanel() {
+    const panel = byId('trade-draft-panel');
+    if (!panel) return;
+    const title = byId('trade-draft-title');
+    const status = byId('trade-draft-status');
+    const restore = $('[data-restore-draft]', panel);
+    const clear = $('[data-clear-draft]', panel);
+    panel.classList.toggle('has-draft', Boolean(createDraft));
+    restore.disabled = !createDraft;
+    clear.hidden = !createDraft;
+    if (!createDraft) {
+      title.textContent = 'Brouillon local';
+      status.textContent = 'Aucun brouillon enregistré sur cet appareil.';
+      return;
+    }
+    title.textContent = 'Brouillon prêt à restaurer';
+    const fruitCount = createDraft.offered.length + createDraft.wanted.length;
+    status.textContent = `Enregistré ${formatRelative(createDraft.savedAt)} · ${pluralize(fruitCount, 'fruit sélectionné', 'fruits sélectionnés')}`;
+  }
+
+  function saveCreateDraft() {
+    const draft = sanitizeDraft(createDraftSnapshot());
+    if (!draft) {
+      showToast('Ajoute un pseudo, un fruit ou un message avant de sauvegarder.', 'warning');
+      return;
+    }
+    if (!safeJsonWrite(STORAGE.draft, draft)) return;
+    createDraft = draft;
+    updateDraftPanel();
+    showToast('Brouillon sauvegardé sur cet appareil.');
+    announce('Brouillon de l’offre sauvegardé localement.');
+  }
+
+  function removeCreateDraft(showFeedback = true) {
+    try {
+      localStorage.removeItem(STORAGE.draft);
+    } catch (error) {
+      if (showFeedback) showToast('Impossible de supprimer le brouillon local.', 'warning');
+      return false;
+    }
+    createDraft = null;
+    updateDraftPanel();
+    if (showFeedback) {
+      showToast('Brouillon supprimé de cet appareil.');
+      announce('Brouillon local supprimé.');
+    }
+    return true;
+  }
+
+  function restoreCreateDraft() {
+    if (!createDraft) {
+      showToast('Aucun brouillon à restaurer.', 'warning');
+      return;
+    }
+    byId('trade-username').value = createDraft.username;
+    byId('trade-mode').value = createDraft.mode;
+    byId('trade-note').value = createDraft.note;
+    state.create.offered = new Set(createDraft.offered);
+    state.create.wanted = new Set(createDraft.wanted);
+    $$('[data-picker-search="offered"], [data-picker-search="wanted"]').forEach((input) => { input.value = ''; });
+    clearCreateErrors();
+    byId('trade-note-count').textContent = String(createDraft.note.length);
+    renderAllPickers();
+    showToast('Brouillon restauré. Tu peux continuer ton offre.');
+    announce('Brouillon restauré dans le formulaire.');
+    window.requestAnimationFrame(() => byId('trade-username').focus());
+  }
+
   function openCreate(trigger) {
     clearCreateErrors();
+    updateDraftPanel();
     const modal = byId('create-trade-modal');
     $('.trade-modal-card', modal).scrollTop = 0;
     openModal(modal, trigger);
@@ -777,6 +894,7 @@
     };
     state.trades.unshift(trade);
     persistTrades();
+    removeCreateDraft(false);
     resetFilters();
     resetCreateForm();
     closeCreate();
@@ -847,7 +965,7 @@
             <span class="field-error" id="counter-error" aria-live="polite"></span>
           </fieldset>
           <div class="counter-form-actions">
-            <button class="btn btn-secondary" type="button" data-share-active><i class="fa-brands fa-whatsapp" aria-hidden="true"></i> Partager l'annonce</button>
+            <button class="btn btn-secondary trade-share-button" type="button" data-share-active><i class="fa-solid fa-share-nodes" aria-hidden="true"></i> Partager l'annonce</button>
             <button class="btn btn-primary" type="submit"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Enregistrer dans la démo</button>
           </div>
         </form>
@@ -862,7 +980,7 @@
         </div>`
       : '';
     return `${ownerActions}
-      <button class="btn btn-secondary" type="button" data-share-active><i class="fa-brands fa-whatsapp" aria-hidden="true"></i> Partager</button>
+      <button class="btn btn-secondary trade-share-button" type="button" data-share-active><i class="fa-solid fa-share-nodes" aria-hidden="true"></i> Partager</button>
       <button class="btn btn-primary" type="button" data-close-detail>Fermer</button>`;
   }
 
@@ -1012,31 +1130,92 @@
     ].filter(Boolean).join('\n');
   }
 
-  function shareTrade(tradeId) {
+  async function copyShareText(text) {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      try {
+        await Promise.race([
+          navigator.clipboard.writeText(text),
+          new Promise((resolve, reject) => {
+            window.setTimeout(() => reject(new Error('Clipboard timeout')), 900);
+          })
+        ]);
+        return true;
+      } catch (error) {
+        // The hidden textarea fallback below also works on older mobile browsers.
+      }
+    }
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.inset = '0 auto auto -9999px';
+    document.body.append(textarea);
+    textarea.select();
+    textarea.setSelectionRange(0, textarea.value.length);
+    let copied = false;
+    try {
+      copied = typeof document.execCommand === 'function' && document.execCommand('copy');
+    } catch (error) {
+      copied = false;
+    }
+    textarea.remove();
+    return copied;
+  }
+
+  function setShareBusy(button, busy) {
+    if (!button) return;
+    button.disabled = busy;
+    button.setAttribute('aria-busy', String(busy));
+    const icon = $('i', button);
+    if (icon) icon.className = `fa-solid ${busy ? 'fa-spinner fa-spin' : 'fa-share-nodes'}`;
+  }
+
+  async function shareTrade(tradeId, trigger) {
     const trade = state.trades.find((item) => item.id === tradeId);
     if (!trade) return;
-    const anchor = document.createElement('a');
-    anchor.href = `https://wa.me/?text=${encodeURIComponent(tradeShareMessage(trade))}`;
-    anchor.target = '_blank';
-    anchor.rel = 'noopener';
-    anchor.hidden = true;
-    document.body.append(anchor);
-    anchor.click();
-    anchor.remove();
-    showToast('Message préparé. Choisis ton contact dans WhatsApp.');
+    const text = tradeShareMessage(trade);
+    const shareData = { title: `Offre Itemsouq de ${trade.username}`, text };
+    setShareBusy(trigger, true);
+    try {
+      if (typeof navigator.share === 'function') {
+        try {
+          await navigator.share(shareData);
+          showToast('Offre envoyée au menu de partage.', 'info');
+          announce('Offre partagée.');
+          return;
+        } catch (error) {
+          if (error && error.name === 'AbortError') {
+            return;
+          }
+        }
+      }
+      const copied = await copyShareText(text);
+      if (copied) {
+        showToast('Offre copiée. Colle-la dans WhatsApp ou ton application préférée.', 'info');
+        announce('Texte de l’offre copié dans le presse-papiers.');
+      } else {
+        showToast('Impossible d’ouvrir le partage ou de copier le texte.', 'warning');
+      }
+    } finally {
+      if (trigger?.isConnected) setShareBusy(trigger, false);
+    }
   }
 
   function resetTradingDemo() {
-    if (!window.confirm('Réinitialiser uniquement les offres Trading de ce navigateur ?')) return;
+    if (!window.confirm('Réinitialiser les offres, favoris et brouillon Trading de ce navigateur ?')) return;
     try {
       localStorage.removeItem(STORAGE.trades);
       localStorage.removeItem(STORAGE.saved);
+      localStorage.removeItem(STORAGE.draft);
     } catch (error) {
       showToast('Impossible de modifier le stockage local.', 'warning');
       return;
     }
     state.trades = demoTrades();
     state.saved.clear();
+    createDraft = null;
+    resetCreateForm();
+    updateDraftPanel();
     persistTrades();
     persistSaved();
     resetFilters();
@@ -1080,6 +1259,9 @@
     $$('[data-close-create]').forEach((button) => button.addEventListener('click', closeCreate));
     $$('[data-close-detail]').forEach((button) => button.addEventListener('click', closeDetail));
     byId('create-trade-form').addEventListener('submit', submitCreate);
+    $('[data-save-draft]').addEventListener('click', saveCreateDraft);
+    $('[data-restore-draft]').addEventListener('click', restoreCreateDraft);
+    $('[data-clear-draft]').addEventListener('click', () => removeCreateDraft(true));
     byId('trade-detail-body').addEventListener('submit', submitCounteroffer);
 
     byId('trade-search').addEventListener('input', (event) => {
@@ -1126,7 +1308,7 @@
       const share = event.target.closest('[data-share-trade]');
       if (save) toggleSaved(save.dataset.saveTrade);
       else if (view) openTradeDetail(view.dataset.viewTrade, view);
-      else if (share) shareTrade(share.dataset.shareTrade);
+      else if (share) shareTrade(share.dataset.shareTrade, share);
     });
 
     document.addEventListener('click', (event) => {
@@ -1137,7 +1319,10 @@
       else if (remove) togglePickerFruit(remove.dataset.pickerRemove, remove.dataset.fruitId);
       else if (ownerStatus) updateOwnedStatus(ownerStatus.dataset.ownerStatus);
       else if (event.target.closest('[data-delete-trade]')) deleteOwnedTrade();
-      else if (event.target.closest('[data-share-active]') && state.activeTradeId) shareTrade(state.activeTradeId);
+      else if (event.target.closest('[data-share-active]') && state.activeTradeId) {
+        const shareButton = event.target.closest('[data-share-active]');
+        shareTrade(state.activeTradeId, shareButton);
+      }
       else if (event.target.closest('[data-close-detail]')) closeDetail();
     });
 
@@ -1199,6 +1384,21 @@
     window.addEventListener('resize', () => {
       if (window.innerWidth > 920 && !byId('mobile-menu').hidden) toggleMobileMenu(true);
     });
+
+    document.addEventListener('itemsouq:languagechange', () => {
+      renderTrades();
+      renderAllPickers();
+      updateDraftPanel();
+      updateValueSortAvailability();
+      if (activeModal?.id === 'trade-detail-modal' && state.activeTradeId) {
+        const trade = state.trades.find((item) => item.id === state.activeTradeId);
+        if (trade) {
+          byId('trade-detail-title').textContent = `${l('trading.view', 'Offre')} · ${trade.username}`;
+          byId('trade-detail-body').innerHTML = detailMarkup(trade);
+          byId('trade-detail-foot').innerHTML = detailFooter(trade);
+        }
+      }
+    });
   }
 
   function validateDataset() {
@@ -1209,6 +1409,7 @@
     validateDataset();
     hydrateState();
     attachEvents();
+    updateDraftPanel();
     updateValueSortAvailability();
     renderAllPickers();
     renderTrades();

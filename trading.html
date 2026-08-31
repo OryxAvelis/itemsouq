@@ -13,8 +13,9 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="assets/css/style.css">
   <link rel="stylesheet" href="assets/css/trading.css">
+  <link rel="stylesheet" href="assets/css/features.css">
 </head>
-<body>
+<body class="trading-page">
   <a class="skip-link" href="#trading-feed">Aller aux offres</a>
 
   <div class="announcement trade-announcement">
@@ -35,15 +36,19 @@
       </a>
 
       <nav class="desktop-nav" aria-label="Navigation principale">
-        <a href="index.html">Accueil</a>
-        <a href="index.html#catalogue">Catalogue</a>
-        <a class="nav-active" href="trading.html" aria-current="page">Trading</a>
-        <a href="index.html#comment-acheter">Comment acheter</a>
-        <a href="index.html#faq">FAQ</a>
+        <a href="index.html" data-i18n="nav.home">Accueil</a>
+        <a href="index.html#catalogue" data-i18n="nav.catalogue">Catalogue</a>
+        <a class="nav-active" href="trading.html" aria-current="page" data-i18n="nav.trading">Trading</a>
+        <a href="index.html#comment-acheter" data-i18n="nav.how">Comment acheter</a>
+        <a href="index.html#faq" data-i18n="nav.faq">FAQ</a>
       </nav>
 
       <div class="header-actions">
-        <button class="cart-trigger trading-create-trigger" type="button" data-open-create aria-haspopup="dialog" aria-controls="create-trade-modal">
+        <button class="icon-action language-toggle" type="button" data-language-toggle aria-label="Afficher le site en Darija" aria-pressed="false">
+          <i class="fa-solid fa-language" aria-hidden="true"></i>
+          <span data-language-label>FR</span>
+        </button>
+        <button class="cart-trigger trading-create-trigger" type="button" data-open-create aria-haspopup="dialog" aria-controls="create-trade-modal" aria-expanded="false">
           <i class="fa-solid fa-plus" aria-hidden="true"></i>
           <span>Publier une offre</span>
         </button>
@@ -54,11 +59,11 @@
     </div>
 
     <nav class="mobile-menu" id="mobile-menu" aria-label="Navigation mobile" hidden>
-      <a href="index.html"><i class="fa-solid fa-house" aria-hidden="true"></i> Accueil</a>
-      <a href="index.html#catalogue"><i class="fa-solid fa-store" aria-hidden="true"></i> Catalogue</a>
-      <a class="mobile-active" href="trading.html" aria-current="page"><i class="fa-solid fa-right-left" aria-hidden="true"></i> Trading</a>
-      <a href="index.html#comment-acheter"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Comment acheter</a>
-      <a href="index.html#faq"><i class="fa-solid fa-comments" aria-hidden="true"></i> FAQ</a>
+      <a href="index.html"><i class="fa-solid fa-house" aria-hidden="true"></i> <span data-i18n="nav.home">Accueil</span></a>
+      <a href="index.html#catalogue"><i class="fa-solid fa-store" aria-hidden="true"></i> <span data-i18n="nav.catalogue">Catalogue</span></a>
+      <a class="mobile-active" href="trading.html" aria-current="page"><i class="fa-solid fa-right-left" aria-hidden="true"></i> <span data-i18n="nav.trading">Trading</span></a>
+      <a href="index.html#comment-acheter"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> <span data-i18n="nav.how">Comment acheter</span></a>
+      <a href="index.html#faq"><i class="fa-solid fa-comments" aria-hidden="true"></i> <span data-i18n="nav.faq">FAQ</span></a>
     </nav>
   </header>
 
@@ -69,15 +74,15 @@
       <div class="trade-orb trade-orb-two" aria-hidden="true"></div>
       <div class="container trade-hero-layout">
         <div class="trade-hero-copy">
-          <div class="trade-eyebrow"><span class="live-dot"></span> Communauté marocaine · Prototype</div>
-          <h1 id="trade-hero-title">Ton fruit contre<br><span>leur meilleure offre.</span></h1>
+          <div class="trade-eyebrow"><span class="live-dot"></span> <span data-i18n="trading.heroEyebrow">Communauté marocaine · Prototype</span></div>
+          <h1 id="trade-hero-title" data-i18n-html="trading.heroTitle">Ton fruit contre<br><span>leur meilleure offre.</span></h1>
           <p>Teste le parcours d'échange : publie ce que tu proposes, indique ce que tu recherches et prépare des contre-offres — cette démo reste sur ton appareil.</p>
           <div class="trade-hero-actions">
-            <button class="btn btn-primary btn-large" type="button" data-open-create aria-haspopup="dialog" aria-controls="create-trade-modal">
-              <i class="fa-solid fa-plus" aria-hidden="true"></i> Publier mon offre
+            <button class="btn btn-primary btn-large" type="button" data-open-create aria-haspopup="dialog" aria-controls="create-trade-modal" aria-expanded="false">
+              <i class="fa-solid fa-plus" aria-hidden="true"></i> <span data-i18n="trading.create">Publier une offre</span>
             </button>
             <a class="btn trade-ghost-button btn-large" href="#trading-feed">
-              Voir les échanges <i class="fa-solid fa-arrow-down" aria-hidden="true"></i>
+              <span data-i18n="trading.feed">Voir les offres</span> <i class="fa-solid fa-arrow-down" aria-hidden="true"></i>
             </a>
           </div>
           <div class="trade-hero-trust" aria-label="Règles essentielles">
@@ -130,7 +135,7 @@
             <h2 id="trading-title">Offres de la communauté</h2>
             <p>Compare ce que chaque joueur propose et recherche. Les valeurs affichées sont des repères du wiki Fandom, pas une garantie d'équité.</p>
           </div>
-          <button class="btn btn-primary" type="button" data-open-create aria-haspopup="dialog" aria-controls="create-trade-modal"><i class="fa-solid fa-plus" aria-hidden="true"></i> Nouvelle offre</button>
+          <button class="btn btn-primary" type="button" data-open-create aria-haspopup="dialog" aria-controls="create-trade-modal" aria-expanded="false"><i class="fa-solid fa-plus" aria-hidden="true"></i> Nouvelle offre</button>
         </div>
 
         <div class="local-demo-banner" role="note">
@@ -246,7 +251,7 @@
         <h3>Explorer</h3>
         <a href="index.html#catalogue">La boutique</a>
         <a href="trading.html">Offres Trading</a>
-        <button class="footer-button" type="button" data-open-create aria-haspopup="dialog" aria-controls="create-trade-modal">Publier une offre</button>
+        <button class="footer-button" type="button" data-open-create aria-haspopup="dialog" aria-controls="create-trade-modal" aria-expanded="false">Publier une offre</button>
       </div>
       <div>
         <h3>Aide</h3>
@@ -265,6 +270,14 @@
     </div>
   </footer>
 
+  <nav class="mobile-bottom-nav" aria-label="Navigation rapide">
+    <a href="index.html"><i class="fa-solid fa-house" aria-hidden="true"></i><span data-i18n="mobile.home">Accueil</span></a>
+    <a href="index.html#catalogue"><i class="fa-solid fa-store" aria-hidden="true"></i><span data-i18n="mobile.shop">Boutique</span></a>
+    <a href="trading.html" class="active" aria-current="page"><i class="fa-solid fa-right-left" aria-hidden="true"></i><span data-i18n="mobile.trade">Trading</span></a>
+    <a href="index.html#souq"><i class="fa-solid fa-user" aria-hidden="true"></i><span data-i18n="mobile.souq">Mon Souq</span></a>
+    <button type="button" data-open-create aria-controls="create-trade-modal" aria-expanded="false"><i class="fa-solid fa-plus" aria-hidden="true"></i><span data-i18n="trade.new.short">Offre</span></button>
+  </nav>
+
   <div class="modal-shell trade-modal" id="create-trade-modal" role="dialog" aria-modal="true" aria-labelledby="create-trade-title" hidden>
     <div class="modal-card trade-modal-card">
       <div class="modal-head trade-modal-head">
@@ -278,6 +291,18 @@
       <form id="create-trade-form" novalidate>
         <div class="modal-body trade-form-body">
           <div class="trade-form-notice"><i class="fa-solid fa-laptop" aria-hidden="true"></i><p><strong>Prototype local.</strong> Cette publication est sauvegardée uniquement dans ton navigateur.</p></div>
+
+          <section class="trade-draft-panel" id="trade-draft-panel" aria-labelledby="trade-draft-title">
+            <span class="trade-draft-icon" aria-hidden="true"><i class="fa-regular fa-file-lines"></i></span>
+            <div class="trade-draft-copy">
+              <strong id="trade-draft-title">Brouillon local</strong>
+              <span id="trade-draft-status" aria-live="polite">Aucun brouillon enregistré sur cet appareil.</span>
+            </div>
+            <div class="trade-draft-actions">
+              <button class="trade-draft-action restore" type="button" data-restore-draft disabled><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> Restaurer</button>
+              <button class="trade-draft-action clear" type="button" data-clear-draft hidden aria-label="Supprimer le brouillon enregistré"><i class="fa-regular fa-trash-can" aria-hidden="true"></i></button>
+            </div>
+          </section>
 
           <div class="form-grid trade-identity-grid">
             <div class="field-group">
@@ -324,6 +349,7 @@
           </div>
         </div>
         <div class="modal-foot trade-modal-foot">
+          <button class="btn btn-secondary trade-draft-save" type="button" data-save-draft><i class="fa-regular fa-floppy-disk" aria-hidden="true"></i> Sauvegarder le brouillon</button>
           <button class="btn btn-secondary" type="button" data-close-create>Fermer</button>
           <button class="btn btn-primary" type="submit"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Publier l'offre</button>
         </div>
@@ -354,6 +380,7 @@
 
   <script src="assets/js/config.js"></script>
   <script src="assets/js/fruits.js"></script>
+  <script src="assets/js/locale.js"></script>
   <script src="assets/js/trading.js"></script>
 </body>
 </html>

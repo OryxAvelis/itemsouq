@@ -1016,6 +1016,109 @@
   line-height: 1.55;
 }
 
+.trade-draft-panel {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  margin-top: 11px;
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.trade-draft-panel.has-draft {
+  border-color: #cfc4ff;
+  background: #faf9ff;
+}
+
+.trade-draft-icon {
+  width: 35px;
+  height: 35px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--canvas);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.trade-draft-panel.has-draft .trade-draft-icon {
+  background: var(--violet-soft);
+  color: var(--violet);
+}
+
+.trade-draft-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.trade-draft-copy strong {
+  color: var(--ink-2);
+  font-size: 10px;
+}
+
+.trade-draft-copy span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trade-draft-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.trade-draft-action {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid #dcd5ff;
+  border-radius: 9px;
+  background: #fff;
+  color: var(--violet);
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.trade-draft-action:hover:not(:disabled) {
+  border-color: #bbaaFF;
+  background: var(--violet-soft);
+}
+
+.trade-draft-action:disabled {
+  border-color: var(--line);
+  color: #a5adbb;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.trade-draft-action.clear {
+  width: 36px;
+  padding: 0;
+  border-color: #f0d5d8;
+  color: #bf3c48;
+}
+
+.trade-draft-action.clear:hover {
+  border-color: #e7b5ba;
+  background: #fff3f4;
+}
+
+.trade-draft-action[hidden] {
+  display: none;
+}
+
 .field-group select,
 .trade-note-field textarea {
   width: 100%;
@@ -1348,6 +1451,25 @@
   background: #fff;
 }
 
+.trade-draft-save {
+  margin-right: auto;
+}
+
+.trade-share-button[aria-busy="true"] {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.toast.warning .toast-icon {
+  background: #fff1dd;
+  color: #b77814;
+}
+
+.toast.info .toast-icon {
+  background: var(--violet-soft);
+  color: var(--violet);
+}
+
 /* Detail dialog */
 .trade-detail-body {
   padding-top: 18px;
@@ -1613,6 +1735,9 @@
   .trade-value-preview > span:last-child { text-align: center; }
   .trade-modal-foot { display: grid; grid-template-columns: 1fr 1.35fr; }
   .trade-modal-foot .btn { width: 100%; padding-inline: 10px; }
+  .trade-modal-foot .trade-draft-save { grid-column: 1 / -1; margin-right: 0; }
+  .trade-draft-panel { align-items: start; }
+  .trade-draft-actions { grid-column: 2 / -1; justify-content: flex-end; }
   .detail-owner { flex-wrap: wrap; }
   .detail-owner-badges { width: 100%; justify-content: flex-start; margin-left: 45px; }
   .detail-exchange { grid-template-columns: 1fr; }
@@ -1636,5 +1761,10 @@
   .trade-card-head-meta { margin-left: 0; }
   .fruit-picker-list, .counter-fruit-fieldset .fruit-picker-list { grid-template-columns: 1fr; }
   .trade-modal-foot { grid-template-columns: 1fr; }
+  .trade-modal-foot .trade-draft-save { grid-column: auto; }
+  .trade-draft-panel { grid-template-columns: auto minmax(0, 1fr); }
+  .trade-draft-copy span { white-space: normal; }
+  .trade-draft-actions { grid-column: 1 / -1; justify-content: stretch; }
+  .trade-draft-action.restore { flex: 1; }
   .detail-owner-badges { margin-left: 0; }
 }
