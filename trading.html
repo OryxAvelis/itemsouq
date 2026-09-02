@@ -11,9 +11,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/style.css?v=20260902-4">
-  <link rel="stylesheet" href="assets/css/trading.css?v=20260902-4">
-  <link rel="stylesheet" href="assets/css/features.css?v=20260902-4">
+  <link rel="stylesheet" href="assets/css/style.css?v=20260902-9">
+  <link rel="stylesheet" href="assets/css/trading.css?v=20260902-9">
+  <link rel="stylesheet" href="assets/css/features.css?v=20260902-9">
 </head>
 <body class="trading-page">
   <a class="skip-link" href="#trading-feed" data-i18n="trading.skipOffers">Aller aux offres</a>
@@ -330,9 +330,9 @@
 
           <div class="trade-picker-columns">
             <fieldset class="trade-fruit-fieldset" data-picker-fieldset="offered" aria-describedby="offered-error" tabindex="-1">
-              <legend><span class="picker-step give"><i class="fa-solid fa-arrow-up" aria-hidden="true"></i></span><span><strong data-i18n="trading.giveYou">Tu proposes</strong><small data-i18n="trading.selectOneToFour">Sélectionne 1 à 4 fruits</small></span></legend>
+              <legend><span class="picker-step give"><i class="fa-solid fa-arrow-up" aria-hidden="true"></i></span><span><strong data-i18n="trading.giveYou">Tu proposes</strong><small data-trade-slot-helper>Ajoute jusqu’à 4 fruits au total · doublons inclus</small></span></legend>
               <label class="picker-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only" data-i18n="trading.searchOfferedLabel">Rechercher dans les fruits proposés</span><input type="search" placeholder="Rechercher…" data-i18n-placeholder="trading.pickerSearchPlaceholder" data-picker-search="offered" autocomplete="off"></label>
-              <div class="selected-fruits" id="offered-selected" aria-live="polite"><span data-i18n="trading.noneSelected">Aucun fruit sélectionné</span></div>
+              <div class="selected-fruits" id="offered-selected"><span data-i18n="trading.noneSelected">Aucun fruit sélectionné</span></div>
               <div class="fruit-picker-list" id="offered-picker" role="group" aria-label="Fruits proposés" data-i18n-aria="trading.offeredGroupAria"></div>
               <span class="field-error" id="offered-error" data-trade-error="offered" aria-live="polite"></span>
             </fieldset>
@@ -340,9 +340,9 @@
             <div class="picker-swap" aria-hidden="true"><i class="fa-solid fa-arrow-right-arrow-left"></i></div>
 
             <fieldset class="trade-fruit-fieldset" data-picker-fieldset="wanted" aria-describedby="wanted-error" tabindex="-1">
-              <legend><span class="picker-step want"><i class="fa-solid fa-arrow-down" aria-hidden="true"></i></span><span><strong data-i18n="trading.wantYou">Tu recherches</strong><small data-i18n="trading.selectOneToFour">Sélectionne 1 à 4 fruits</small></span></legend>
+              <legend><span class="picker-step want"><i class="fa-solid fa-arrow-down" aria-hidden="true"></i></span><span><strong data-i18n="trading.wantYou">Tu recherches</strong><small data-trade-slot-helper>Ajoute jusqu’à 4 fruits au total · doublons inclus</small></span></legend>
               <label class="picker-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only" data-i18n="trading.searchWantedLabel">Rechercher dans les fruits demandés</span><input type="search" placeholder="Rechercher…" data-i18n-placeholder="trading.pickerSearchPlaceholder" data-picker-search="wanted" autocomplete="off"></label>
-              <div class="selected-fruits" id="wanted-selected" aria-live="polite"><span data-i18n="trading.noneSelected">Aucun fruit sélectionné</span></div>
+              <div class="selected-fruits" id="wanted-selected"><span data-i18n="trading.noneSelected">Aucun fruit sélectionné</span></div>
               <div class="fruit-picker-list" id="wanted-picker" role="group" aria-label="Fruits recherchés" data-i18n-aria="trading.wantedGroupAria"></div>
               <span class="field-error" id="wanted-error" data-trade-error="wanted" aria-live="polite"></span>
             </fieldset>
@@ -387,9 +387,9 @@
   <div class="sr-only" id="trade-live-region" aria-live="polite" aria-atomic="true"></div>
   <div class="sr-only" id="trade-alert-region" role="alert" aria-live="assertive" aria-atomic="true"></div>
 
-  <script src="assets/js/config.js?v=20260902-4"></script>
-  <script src="assets/js/fruits.js?v=20260902-4"></script>
-  <script src="assets/js/locale.js?v=20260902-4"></script>
-  <script src="assets/js/trading.js?v=20260902-4"></script>
+  <script src="assets/js/config.js?v=20260902-9"></script>
+  <script src="assets/js/fruits.js?v=20260902-9"></script>
+  <script src="assets/js/locale.js?v=20260902-9"></script>
+  <script src="assets/js/trading.js?v=20260902-9"></script>
 </body>
 </html>

@@ -52,10 +52,10 @@
     status: 'open',
     sort: 'newest',
     create: {
-      offered: new Set(),
-      wanted: new Set()
+      offered: new Map(),
+      wanted: new Map()
     },
-    counter: new Set(),
+    counter: new Map(),
     activeTradeId: null,
     tracker: new Map(),
     reported: new Set(),
@@ -240,16 +240,45 @@
 
   function sanitizeLines(lines, mode) {
     if (!Array.isArray(lines)) return [];
-    const seen = new Set();
     const result = [];
+    let usedSlots = 0;
     for (const line of lines) {
       const clean = sanitizeLine(line, mode);
-      if (!clean || seen.has(clean.fruitId)) continue;
-      seen.add(clean.fruitId);
-      result.push(clean);
-      if (result.length === MAX_FRUITS) break;
+      if (!clean || usedSlots >= MAX_FRUITS) continue;
+      const existing = result.find((item) => item.fruitId === clean.fruitId);
+      if (existing) {
+        if (mode === 'permanent') continue;
+        const increment = Math.min(clean.quantity, MAX_FRUITS - usedSlots, MAX_FRUITS - existing.quantity);
+        if (increment > 0) {
+          existing.quantity += increment;
+          usedSlots += increment;
+        }
+        continue;
+      }
+      const quantity = Math.min(clean.quantity, MAX_FRUITS - usedSlots);
+      result.push({ fruitId: clean.fruitId, quantity });
+      usedSlots += quantity;
     }
     return result;
+  }
+
+  function selectionFromLines(lines, mode = 'physical') {
+    return new Map(sanitizeLines(lines, mode).map((line) => [line.fruitId, line.quantity]));
+  }
+
+  function selectionToLines(selection, mode = 'physical') {
+    if (!(selection instanceof Map)) return [];
+    return sanitizeLines([...selection.entries()].map(([fruitId, quantity]) => ({ fruitId, quantity })), mode);
+  }
+
+  function selectionSlots(selection) {
+    if (!(selection instanceof Map)) return 0;
+    return [...selection.values()].reduce((total, quantity) => total + quantity, 0);
+  }
+
+  function lineSlots(lines) {
+    if (!Array.isArray(lines)) return 0;
+    return lines.reduce((total, line) => total + (Number.parseInt(line?.quantity, 10) || 1), 0);
   }
 
   function sanitizeUsername(value) {
@@ -382,12 +411,13 @@
   function sanitizeDraft(input) {
     if (!input || typeof input !== 'object') return null;
     const mode = input.mode === 'permanent' ? 'permanent' : 'physical';
-    const offered = sanitizeLines(Array.isArray(input.offered) ? input.offered.map((fruitId) => ({ fruitId, quantity: 1 })) : [], mode)
-      .map((line) => line.fruitId);
-    const offeredIds = new Set(offered);
-    const wanted = sanitizeLines(Array.isArray(input.wanted) ? input.wanted.map((fruitId) => ({ fruitId, quantity: 1 })) : [], mode)
-      .map((line) => line.fruitId)
-      .filter((fruitId) => !offeredIds.has(fruitId));
+    const normalizeDraftLines = (value) => Array.isArray(value)
+      ? value.map((item) => typeof item === 'string' ? { fruitId: item, quantity: 1 } : item)
+      : [];
+    const offered = sanitizeLines(normalizeDraftLines(input.offered), mode);
+    const offeredIds = new Set(offered.map((line) => line.fruitId));
+    const wanted = sanitizeLines(normalizeDraftLines(input.wanted), mode)
+      .filter((line) => !offeredIds.has(line.fruitId));
     const username = typeof input.username === 'string' ? input.username.slice(0, 20) : '';
     const note = typeof input.note === 'string' ? input.note.slice(0, 180) : '';
     const savedAt = new Date(input.savedAt);
@@ -903,6 +933,33 @@
     return state.create[kind];
   }
 
+  function pickerMode(kind) {
+    if (kind === 'counter') {
+      return state.trades.find((trade) => trade.id === state.activeTradeId)?.mode || 'physical';
+    }
+    return byId('trade-mode')?.value === 'permanent' ? 'permanent' : 'physical';
+  }
+
+  function slotHelperCopy(mode) {
+    return mode === 'permanent'
+      ? l('trading.selectSlotsPermanent', 'Ajoute jusqu’à 4 fruits permanents différents · un exemplaire chacun')
+      : l('trading.selectSlots', 'Ajoute jusqu’à 4 fruits au total · doublons inclus');
+  }
+
+  function updateCreateSlotHelpers() {
+    const mode = pickerMode('offered');
+    $$('[data-trade-slot-helper]').forEach((helper) => {
+      helper.textContent = slotHelperCopy(mode);
+    });
+  }
+
+  function pickerOpposite(kind) {
+    if (kind === 'offered') return state.create.wanted;
+    if (kind === 'wanted') return state.create.offered;
+    const activeTrade = state.trades.find((trade) => trade.id === state.activeTradeId);
+    return new Set(activeTrade?.offered.map((line) => line.fruitId) || []);
+  }
+
   function pickerContainer(kind) {
     return byId(kind === 'counter' ? 'counter-picker' : `${kind}-picker`);
   }
@@ -911,27 +968,44 @@
     const container = byId(kind === 'counter' ? 'counter-selected' : `${kind}-selected`);
     if (!container) return;
     const selected = pickerSelection(kind);
-    if (!selected.size) {
-      container.innerHTML = `<span>${l('trading.noneSelected', 'Aucun fruit sélectionné')}</span>`;
-      return;
-    }
-    container.innerHTML = [...selected].map((fruitId) => {
+    const mode = pickerMode(kind);
+    const usedSlots = selectionSlots(selected);
+    const selectedMarkup = [...selected.entries()].map(([fruitId, quantity]) => {
       const fruit = fruitById.get(fruitId);
       if (!fruit) return '';
-      return `<button class="selected-fruit-chip" type="button" data-picker-remove="${kind}" data-fruit-id="${escapeHtml(fruitId)}" aria-label="${escapeHtml(l('trading.picker.removeAria', `Retirer ${fruit.name}`, { fruit: fruit.name }))}"><img src="${fruitImagePath(fruit)}" alt="" width="512" height="512">${escapeHtml(fruit.name)} <i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`;
+      const quantityControl = mode === 'permanent'
+        ? `<span class="selected-fruit-fixed" aria-label="${escapeHtml(l('trading.quantityAria', `Quantité ${quantity}`, { count: quantity }))}"><i class="fa-solid fa-infinity" aria-hidden="true"></i><b>${quantity}</b></span>`
+        : `<span class="selected-fruit-stepper" role="group" aria-label="${escapeHtml(l('aria.fruitQuantity', `Quantité de ${fruit.name}`, { fruit: fruit.name }))}">
+            <button type="button" data-picker-quantity="${kind}" data-fruit-id="${escapeHtml(fruitId)}" data-quantity-delta="-1" aria-label="${escapeHtml(l('aria.decreaseFruit', `Diminuer ${fruit.name}`, { fruit: fruit.name }))}" ${quantity <= 1 ? 'disabled' : ''}><i class="fa-solid fa-minus" aria-hidden="true"></i></button>
+            <b aria-label="${escapeHtml(l('trading.quantityAria', `Quantité ${quantity}`, { count: quantity }))}">${quantity}</b>
+            <button type="button" data-picker-quantity="${kind}" data-fruit-id="${escapeHtml(fruitId)}" data-quantity-delta="1" aria-label="${escapeHtml(l('aria.increaseFruit', `Augmenter ${fruit.name}`, { fruit: fruit.name }))}" ${usedSlots >= MAX_FRUITS ? 'disabled' : ''}><i class="fa-solid fa-plus" aria-hidden="true"></i></button>
+          </span>`;
+      return `<div class="selected-fruit-chip">
+        <img src="${fruitImagePath(fruit)}" alt="" width="512" height="512">
+        <span class="selected-fruit-name"><strong>${escapeHtml(fruit.name)}</strong><small>×${quantity}</small></span>
+        ${quantityControl}
+        <button class="selected-fruit-remove" type="button" data-picker-remove="${kind}" data-fruit-id="${escapeHtml(fruitId)}" aria-label="${escapeHtml(l('trading.quantity.removeAria', `Retirer complètement ${fruit.name}`, { fruit: fruit.name }))}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+      </div>`;
     }).join('');
+    const emptyMarkup = selected.size
+      ? ''
+      : `<span class="selected-fruits-empty">${escapeHtml(l('trading.noneSelected', 'Aucun fruit sélectionné'))}</span>`;
+    const isFull = usedSlots >= MAX_FRUITS;
+    const slotsCopy = isFull
+      ? l('trading.slots.full', `${usedSlots}/${MAX_FRUITS} places · limite atteinte`, { used: usedSlots, limit: MAX_FRUITS })
+      : l('trading.slots.count', `${usedSlots}/${MAX_FRUITS} places utilisées`, { used: usedSlots, limit: MAX_FRUITS });
+    const slotsAria = isFull
+      ? l('trading.slots.fullAria', `${usedSlots} places utilisées sur ${MAX_FRUITS}. Limite atteinte.`, { used: usedSlots, limit: MAX_FRUITS })
+      : l('trading.slots.countAria', `${usedSlots} places utilisées sur ${MAX_FRUITS}`, { used: usedSlots, limit: MAX_FRUITS });
+    container.innerHTML = `${selectedMarkup}${emptyMarkup}<span class="selected-slot-count${isFull ? ' is-full' : ''}" aria-label="${escapeHtml(slotsAria)}"><i class="fa-solid fa-layer-group" aria-hidden="true"></i>${escapeHtml(slotsCopy)}</span>`;
   }
 
   function renderPicker(kind, query = '') {
     const container = pickerContainer(kind);
     if (!container) return;
     const selected = pickerSelection(kind);
-    const activeTrade = kind === 'counter' ? state.trades.find((trade) => trade.id === state.activeTradeId) : null;
-    const opposite = kind === 'offered'
-      ? state.create.wanted
-      : kind === 'wanted'
-        ? state.create.offered
-        : new Set(activeTrade?.offered.map((line) => line.fruitId) || []);
+    const opposite = pickerOpposite(kind);
+    const usedSlots = selectionSlots(selected);
     const normalized = query.trim().toLocaleLowerCase('fr');
     const matches = fruits.filter((fruit) => !normalized || fruit.name.toLocaleLowerCase('fr').includes(normalized));
 
@@ -945,14 +1019,27 @@
     container.innerHTML = matches.map((fruit) => {
       const fruitId = slugify(fruit.name);
       const isSelected = selected.has(fruitId);
-      const isUnavailable = !isSelected && (selected.size >= MAX_FRUITS || opposite.has(fruitId));
-      const isTabStop = !isUnavailable && !hasTabStop;
+      const quantity = selected.get(fruitId) || 0;
+      const unavailableReason = !isSelected && opposite.has(fruitId)
+        ? 'opposite'
+        : !isSelected && usedSlots >= MAX_FRUITS
+          ? 'full'
+          : '';
+      const isUnavailable = Boolean(unavailableReason);
+      const isTabStop = !hasTabStop;
       if (isTabStop) hasTabStop = true;
+      const pickerLabel = isSelected
+        ? l('trading.picker.removeAria', `Retirer ${fruit.name}`, { fruit: fruit.name })
+        : unavailableReason === 'opposite'
+          ? l('trading.picker.oppositeAria', `${fruit.name} indisponible : déjà sélectionné de l’autre côté`, { fruit: fruit.name })
+          : unavailableReason === 'full'
+            ? l('trading.picker.fullAria', `${fruit.name} indisponible : les ${MAX_FRUITS} places sont utilisées`, { fruit: fruit.name, limit: MAX_FRUITS })
+            : l('trading.picker.addAria', `Ajouter ${fruit.name}`, { fruit: fruit.name });
       return `
-        <button class="fruit-picker-option" type="button" data-picker="${kind}" data-fruit-id="${escapeHtml(fruitId)}" aria-pressed="${isSelected}" tabindex="${isTabStop ? '0' : '-1'}" ${isUnavailable ? 'disabled' : ''}>
+        <button class="fruit-picker-option${isSelected ? ' is-selected' : ''}" type="button" data-picker="${kind}" data-fruit-id="${escapeHtml(fruitId)}" aria-pressed="${isSelected}" aria-label="${escapeHtml(pickerLabel)}"${isUnavailable ? ` title="${escapeHtml(pickerLabel)}" aria-disabled="true"` : ''} tabindex="${isTabStop ? '0' : '-1'}">
           <img src="${fruitImagePath(fruit)}" alt="" width="512" height="512" loading="lazy" decoding="async">
           <span><strong>${escapeHtml(fruit.name)}</strong><small>${escapeHtml(rarityLabel(fruit.rarity))}</small></span>
-          <i class="picker-check fa-solid fa-check" aria-hidden="true"></i>
+          <span class="picker-check" aria-hidden="true"><i class="fa-solid fa-check"></i>${quantity > 1 ? `<b>×${quantity}</b>` : ''}</span>
         </button>`;
     }).join('');
     renderSelected(kind);
@@ -972,21 +1059,16 @@
     if (selected.has(fruitId)) {
       selected.delete(fruitId);
     } else {
-      const activeTrade = kind === 'counter' ? state.trades.find((trade) => trade.id === state.activeTradeId) : null;
-      const opposite = kind === 'offered'
-        ? state.create.wanted
-        : kind === 'wanted'
-          ? state.create.offered
-          : new Set(activeTrade?.offered.map((line) => line.fruitId) || []);
+      const opposite = pickerOpposite(kind);
       if (opposite.has(fruitId)) {
         showToast(l('trading.validation.sameFruitBothSides', 'Un même fruit ne peut pas être des deux côtés.'), 'warning');
         return;
       }
-      if (selected.size >= MAX_FRUITS) {
-        showToast(l('trading.validation.maxPerSide', `Maximum ${MAX_FRUITS} fruits par côté.`, { count: MAX_FRUITS }), 'warning');
+      if (selectionSlots(selected) >= MAX_FRUITS) {
+        showToast(l('trading.validation.slotLimit', `Maximum ${MAX_FRUITS} fruits au total par côté, doublons inclus.`, { limit: MAX_FRUITS }), 'warning');
         return;
       }
-      selected.add(fruitId);
+      selected.set(fruitId, 1);
     }
 
     if (kind === 'counter') {
@@ -1008,12 +1090,93 @@
         target.focus();
       }
     });
+    const fruit = fruitById.get(fruitId);
+    const usedSlots = selectionSlots(selected);
+    if (fruit) {
+      announce(selected.has(fruitId)
+        ? l('trading.feedback.quantityChanged', `Quantité de ${fruit.name} : ${selected.get(fruitId)}. ${usedSlots}/${MAX_FRUITS} places utilisées.`, {
+          fruit: fruit.name, count: selected.get(fruitId), used: usedSlots, limit: MAX_FRUITS
+        })
+        : l('trading.feedback.fruitRemoved', `${fruit.name} retiré. ${usedSlots}/${MAX_FRUITS} places utilisées.`, {
+          fruit: fruit.name, used: usedSlots, limit: MAX_FRUITS
+        }));
+    }
+  }
+
+  function changePickerQuantity(kind, fruitId, delta, focusControl = 'quantity') {
+    const selected = pickerSelection(kind);
+    const fruit = fruitById.get(fruitId);
+    if (!fruit || !selected.has(fruitId)) return;
+    const mode = pickerMode(kind);
+    const current = selected.get(fruitId) || 1;
+    if (delta > 0) {
+      if (mode === 'permanent') {
+        showToast(l('trading.feedback.permanentNormalized', 'Les fruits permanents sont limités à un exemplaire chacun.'), 'info');
+        return;
+      }
+      if (selectionSlots(selected) >= MAX_FRUITS) {
+        showToast(l('trading.validation.slotLimit', `Maximum ${MAX_FRUITS} fruits au total par côté, doublons inclus.`, { limit: MAX_FRUITS }), 'warning');
+        return;
+      }
+      selected.set(fruitId, current + 1);
+    } else if (current > 1) {
+      selected.set(fruitId, current - 1);
+    } else {
+      return;
+    }
+
+    if (kind === 'counter') {
+      renderPicker('counter', $('[data-picker-search="counter"]')?.value || '');
+      clearPickerError('counter');
+    } else {
+      renderAllPickers();
+      clearPickerError(kind);
+    }
+    const usedSlots = selectionSlots(selected);
+    announce(l('trading.feedback.quantityChanged', `Quantité de ${fruit.name} : ${selected.get(fruitId)}. ${usedSlots}/${MAX_FRUITS} places utilisées.`, {
+      fruit: fruit.name, count: selected.get(fruitId), used: usedSlots, limit: MAX_FRUITS
+    }));
+    window.requestAnimationFrame(() => {
+      const selector = `[data-picker-${focusControl}="${kind}"][data-fruit-id="${fruitId}"][data-quantity-delta="${delta > 0 ? '1' : '-1'}"]`;
+      const target = document.querySelector(`${selector}:not([disabled])`)
+        || document.querySelector(`[data-picker-quantity="${kind}"][data-fruit-id="${fruitId}"]:not([disabled])`)
+        || document.querySelector(`[data-picker-remove="${kind}"][data-fruit-id="${fruitId}"]`);
+      target?.focus();
+    });
+  }
+
+  function removePickerFruit(kind, fruitId) {
+    const selected = pickerSelection(kind);
+    const fruit = fruitById.get(fruitId);
+    if (!fruit || !selected.delete(fruitId)) return;
+    if (kind === 'counter') {
+      renderPicker('counter', $('[data-picker-search="counter"]')?.value || '');
+      clearPickerError('counter');
+    } else {
+      renderAllPickers();
+      clearPickerError(kind);
+    }
+    const usedSlots = selectionSlots(selected);
+    announce(l('trading.feedback.fruitRemoved', `${fruit.name} retiré. ${usedSlots}/${MAX_FRUITS} places utilisées.`, {
+      fruit: fruit.name, used: usedSlots, limit: MAX_FRUITS
+    }));
+    window.requestAnimationFrame(() => {
+      const container = pickerContainer(kind);
+      const options = $$('[data-picker]', container);
+      const target = document.querySelector(`[data-picker="${kind}"][data-fruit-id="${fruitId}"]`)
+        || options[0];
+      if (target) {
+        options.forEach((option) => { option.tabIndex = -1; });
+        target.tabIndex = 0;
+        target.focus();
+      }
+    });
   }
 
   function updateCreateValuePreview() {
     const mode = byId('trade-mode')?.value === 'permanent' ? 'permanent' : 'physical';
-    const offered = [...state.create.offered].map((fruitId) => ({ fruitId, quantity: 1 }));
-    const wanted = [...state.create.wanted].map((fruitId) => ({ fruitId, quantity: 1 }));
+    const offered = selectionToLines(state.create.offered, mode);
+    const wanted = selectionToLines(state.create.wanted, mode);
     const offeredValue = linesValue(offered, mode);
     const wantedValue = linesValue(wanted, mode);
     const largest = Math.max(offeredValue, wantedValue);
@@ -1024,6 +1187,26 @@
         ? l('trading.wikiGap', `Écart wiki ${gap}%`, { gap })
         : l('trading.addBothSides', 'Ajoute les deux côtés'))}</b>
       <span>${escapeHtml(l('trading.wantYou', 'Tu recherches'))}<strong>${formatValue(wantedValue, mode)}</strong></span>`;
+  }
+
+  function handleCreateModeChange() {
+    const mode = byId('trade-mode')?.value === 'permanent' ? 'permanent' : 'physical';
+    let normalized = false;
+    if (mode === 'permanent') {
+      [state.create.offered, state.create.wanted].forEach((selection) => {
+        selection.forEach((quantity, fruitId) => {
+          if (quantity > 1) {
+            selection.set(fruitId, 1);
+            normalized = true;
+          }
+        });
+      });
+    }
+    updateCreateSlotHelpers();
+    renderAllPickers();
+    if (normalized) {
+      showToast(l('trading.feedback.permanentNormalized', 'Les fruits permanents sont limités à un exemplaire chacun.'), 'info');
+    }
   }
 
   function setPageInert(inert) {
@@ -1086,15 +1269,17 @@
     $$('[data-picker-search="offered"], [data-picker-search="wanted"]').forEach((input) => { input.value = ''; });
     clearCreateErrors();
     byId('trade-note-count').textContent = '0';
+    updateCreateSlotHelpers();
     renderAllPickers();
   }
 
   function createDraftSnapshot() {
+    const mode = byId('trade-mode').value === 'permanent' ? 'permanent' : 'physical';
     return {
       username: byId('trade-username').value.slice(0, 20),
-      mode: byId('trade-mode').value === 'permanent' ? 'permanent' : 'physical',
-      offered: [...state.create.offered],
-      wanted: [...state.create.wanted],
+      mode,
+      offered: selectionToLines(state.create.offered, mode),
+      wanted: selectionToLines(state.create.wanted, mode),
       note: byId('trade-note').value.slice(0, 180),
       savedAt: new Date().toISOString()
     };
@@ -1116,7 +1301,7 @@
       return;
     }
     title.textContent = l('trading.draft.ready', 'Brouillon prêt à restaurer');
-    const fruitCount = createDraft.offered.length + createDraft.wanted.length;
+    const fruitCount = lineSlots(createDraft.offered) + lineSlots(createDraft.wanted);
     const selectedCopy = fruitCount === 1
       ? l('trading.draft.fruit.one', '1 fruit sélectionné', { count: fruitCount })
       : l('trading.draft.fruit.many', `${fruitCount} fruits sélectionnés`, { count: fruitCount });
@@ -1162,11 +1347,12 @@
     byId('trade-username').value = createDraft.username;
     byId('trade-mode').value = createDraft.mode;
     byId('trade-note').value = createDraft.note;
-    state.create.offered = new Set(createDraft.offered);
-    state.create.wanted = new Set(createDraft.wanted);
+    state.create.offered = selectionFromLines(createDraft.offered, createDraft.mode);
+    state.create.wanted = selectionFromLines(createDraft.wanted, createDraft.mode);
     $$('[data-picker-search="offered"], [data-picker-search="wanted"]').forEach((input) => { input.value = ''; });
     clearCreateErrors();
     byId('trade-note-count').textContent = String(createDraft.note.length);
+    updateCreateSlotHelpers();
     renderAllPickers();
     showToast(l('trading.draft.restoredToast', 'Brouillon restauré. Tu peux continuer ton offre.'));
     announce(l('trading.draft.restoredAnnouncement', 'Brouillon restauré dans le formulaire.'));
@@ -1253,7 +1439,7 @@
       errors.push($('[data-picker-fieldset="wanted"]'));
       messages.push(message);
     }
-    const overlaps = [...state.create.offered].some((fruitId) => state.create.wanted.has(fruitId));
+    const overlaps = [...state.create.offered.keys()].some((fruitId) => state.create.wanted.has(fruitId));
     if (overlaps) {
       const message = l('trading.validation.sameFruitBothSides', 'Le même fruit ne peut pas être proposé et recherché.');
       setCreateError('wanted', message);
@@ -1279,8 +1465,8 @@
       owned: true,
       trust: defaultTrust(byId('trade-username').value.trim(), true),
       localInteraction: { responseId: null, state: 'awaiting_response', updatedAt: new Date().toISOString() },
-      offered: [...state.create.offered].map((fruitId) => ({ fruitId, quantity: 1 })),
-      wanted: [...state.create.wanted].map((fruitId) => ({ fruitId, quantity: 1 })),
+      offered: selectionToLines(state.create.offered, mode),
+      wanted: selectionToLines(state.create.wanted, mode),
       note: byId('trade-note').value.trim().slice(0, 180),
       createdAt: new Date().toISOString(),
       responses: []
@@ -1320,7 +1506,10 @@
     const responseMarkup = history.length
       ? `<div class="counter-list">${history.map((response) => {
           const outcome = responseOutcomeMeta(response.outcome);
-          const fruitNames = response.offered.map((line) => fruitById.get(line.fruitId)?.name || '').join(' + ');
+          const fruitNames = response.offered.map((line) => {
+            const name = fruitById.get(line.fruitId)?.name || '';
+            return line.quantity > 1 ? `${line.quantity}× ${name}` : name;
+          }).join(' + ');
           const actions = trade.owned && trade.status === 'open' && response.outcome === 'pending'
             ? `<div class="counter-item-actions">
                 <button type="button" data-response-action="accepted" data-response-id="${escapeHtml(response.id)}" aria-label="${escapeHtml(l('trading.response.acceptAria', `Accepter l’offre de ${response.username}`, { username: response.username }))}"><i class="fa-solid fa-check" aria-hidden="true"></i><span>${escapeHtml(l('trading.response.accept', 'Accepter'))}</span></button>
@@ -1395,9 +1584,9 @@
             </div>
           </div>
           <fieldset class="trade-fruit-fieldset counter-fruit-fieldset" data-picker-fieldset="counter" aria-describedby="counter-error" tabindex="-1">
-            <legend><span class="picker-step give"><i class="fa-solid fa-arrow-up" aria-hidden="true"></i></span><span><strong>${escapeHtml(l('trading.counter.give', 'Tu proposes en échange'))}</strong><small>${escapeHtml(l('trading.selectOneToFour', 'Sélectionne 1 à 4 fruits'))}</small></span></legend>
+            <legend><span class="picker-step give"><i class="fa-solid fa-arrow-up" aria-hidden="true"></i></span><span><strong>${escapeHtml(l('trading.counter.give', 'Tu proposes en échange'))}</strong><small>${escapeHtml(slotHelperCopy(trade.mode))}</small></span></legend>
             <label class="picker-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only">${escapeHtml(l('trading.counter.searchLabel', 'Rechercher un fruit pour la contre-offre'))}</span><input type="search" placeholder="${escapeHtml(l('trading.pickerSearchPlaceholder', 'Rechercher…'))}" data-picker-search="counter" autocomplete="off"></label>
-            <div class="selected-fruits" id="counter-selected" aria-live="polite"><span>${escapeHtml(l('trading.noneSelected', 'Aucun fruit sélectionné'))}</span></div>
+            <div class="selected-fruits" id="counter-selected"><span>${escapeHtml(l('trading.noneSelected', 'Aucun fruit sélectionné'))}</span></div>
             <div class="fruit-picker-list" id="counter-picker" role="group" aria-label="${escapeHtml(l('trading.counter.groupAria', 'Fruits de la contre-offre'))}"></div>
             <span class="field-error" id="counter-error" aria-live="polite"></span>
           </fieldset>
@@ -1497,7 +1686,7 @@
       return;
     }
     const sourceIds = new Set(trade.offered.map((line) => line.fruitId));
-    if ([...state.counter].some((fruitId) => sourceIds.has(fruitId))) {
+    if ([...state.counter.keys()].some((fruitId) => sourceIds.has(fruitId))) {
       fieldset.classList.add('has-error');
       fieldset.setAttribute('aria-invalid', 'true');
       pickerError.textContent = l('trading.validation.counterDifferent', 'Choisis un fruit différent de ceux proposés par ce joueur.');
@@ -1513,7 +1702,7 @@
     trade.responses.push({
       id: responseId,
       username,
-      offered: [...state.counter].map((fruitId) => ({ fruitId, quantity: 1 })),
+      offered: selectionToLines(state.counter, trade.mode),
       note: byId('counter-note').value.trim().slice(0, 160),
       createdAt: new Date().toISOString(),
       local: true,
@@ -1888,6 +2077,8 @@
         : l('trading.menu.open', 'Ouvrir le menu'));
     }
 
+    updateCreateSlotHelpers();
+
     let localizedStyle = byId('trading-localized-style');
     if (!localizedStyle) {
       localizedStyle = document.createElement('style');
@@ -1973,6 +2164,7 @@
     });
 
     document.addEventListener('click', (event) => {
+      const quantity = event.target.closest('[data-picker-quantity]');
       const picker = event.target.closest('[data-picker]');
       const remove = event.target.closest('[data-picker-remove]');
       const ownerStatus = event.target.closest('[data-owner-status]');
@@ -1981,8 +2173,9 @@
       const blockTradeButton = event.target.closest('[data-block-trade]');
       const responseAction = event.target.closest('[data-response-action]');
       const trackerAdvance = event.target.closest('[data-advance-tracker]');
-      if (picker) togglePickerFruit(picker.dataset.picker, picker.dataset.fruitId);
-      else if (remove) togglePickerFruit(remove.dataset.pickerRemove, remove.dataset.fruitId);
+      if (quantity) changePickerQuantity(quantity.dataset.pickerQuantity, quantity.dataset.fruitId, Number(quantity.dataset.quantityDelta));
+      else if (picker) togglePickerFruit(picker.dataset.picker, picker.dataset.fruitId);
+      else if (remove) removePickerFruit(remove.dataset.pickerRemove, remove.dataset.fruitId);
       else if (ownerStatus) updateOwnedStatus(ownerStatus.dataset.ownerStatus);
       else if (clearPickerSearch) {
         const kind = clearPickerSearch.dataset.clearPickerSearch;
@@ -2023,7 +2216,7 @@
     byId('trade-detail-body').addEventListener('input', (event) => {
       if (event.target.matches('[data-picker-search="counter"]')) renderPicker('counter', event.target.value);
     });
-    byId('trade-mode').addEventListener('change', updateCreateValuePreview);
+    byId('trade-mode').addEventListener('change', handleCreateModeChange);
     byId('trade-note').addEventListener('input', (event) => {
       byId('trade-note-count').textContent = String(event.target.value.length);
     });

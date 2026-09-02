@@ -63,6 +63,7 @@
     historyClear: document.getElementById('calc-history-clear'),
     pickerModal: document.getElementById('calc-picker-modal'),
     pickerTitle: document.getElementById('calc-picker-title'),
+    pickerCopy: document.getElementById('calc-picker-copy'),
     pickerSearch: document.getElementById('calc-picker-search'),
     pickerList: document.getElementById('calc-picker-list'),
     pickerEmpty: document.getElementById('calc-picker-empty'),
@@ -139,14 +140,31 @@
 
   function sanitizeLines(lines, mode = 'physical') {
     if (!Array.isArray(lines)) return [];
-    const seen = new Set();
-    return lines.slice(0, MAX_FRUITS * 2).reduce((result, line) => {
+    const result = [];
+    let usedSlots = 0;
+    for (const line of lines.slice(0, MAX_FRUITS * 2)) {
       const clean = sanitizeLine(line, mode);
-      if (!clean || seen.has(clean.fruitId) || result.length >= MAX_FRUITS) return result;
-      seen.add(clean.fruitId);
-      result.push(clean);
-      return result;
-    }, []);
+      if (!clean || usedSlots >= MAX_FRUITS) continue;
+      const existing = result.find((item) => item.fruitId === clean.fruitId);
+      if (existing) {
+        if (mode === 'permanent') continue;
+        const increment = Math.min(clean.quantity, MAX_FRUITS - usedSlots, MAX_QUANTITY - existing.quantity);
+        if (increment > 0) {
+          existing.quantity += increment;
+          usedSlots += increment;
+        }
+        continue;
+      }
+      const quantity = mode === 'permanent' ? 1 : Math.min(clean.quantity, MAX_FRUITS - usedSlots);
+      result.push({ fruitId: clean.fruitId, quantity });
+      usedSlots += quantity;
+    }
+    return result;
+  }
+
+  function lineSlots(lines, mode = 'physical') {
+    if (!Array.isArray(lines)) return 0;
+    return lines.reduce((total, line) => total + (mode === 'permanent' ? 1 : (Number.parseInt(line?.quantity, 10) || 1)), 0);
   }
 
   function sanitizeState(candidate) {
@@ -347,6 +365,8 @@
     const fruit = fruitById.get(line.fruitId);
     if (!fruit) return '';
     const quantity = state.mode === 'permanent' ? 1 : line.quantity;
+    const sideLines = side === 'left' ? state.left : state.right;
+    const usedSlots = lineSlots(sideLines, state.mode);
     const totalValue = valueFor(fruit) * quantity;
     const rarity = t(`rarity.${fruit.rarity}`, fruit.rarity);
     const removeLabel = t('calculator.aria.removeFruit', `Retirer ${fruit.name}`, {
@@ -359,7 +379,7 @@
       <div class="calc-quantity" aria-label="${escapeHtml(t('trading.quantityAria', `Quantité ${quantity}`, { count: quantity }))}">
         <button type="button" data-quantity-side="${side}" data-fruit-id="${line.fruitId}" data-quantity-delta="-1" aria-label="${escapeHtml(decreaseLabel)}" title="${escapeHtml(decreaseLabel)}" ${quantity <= 1 ? 'disabled' : ''}><i class="fa-solid fa-minus" aria-hidden="true"></i></button>
         <span aria-hidden="true">${quantity}</span>
-        <button type="button" data-quantity-side="${side}" data-fruit-id="${line.fruitId}" data-quantity-delta="1" aria-label="${escapeHtml(increaseLabel)}" title="${escapeHtml(increaseLabel)}" ${quantity >= MAX_QUANTITY ? 'disabled' : ''}><i class="fa-solid fa-plus" aria-hidden="true"></i></button>
+        <button type="button" data-quantity-side="${side}" data-fruit-id="${line.fruitId}" data-quantity-delta="1" aria-label="${escapeHtml(increaseLabel)}" title="${escapeHtml(increaseLabel)}" ${quantity >= MAX_QUANTITY || usedSlots >= MAX_FRUITS ? 'disabled' : ''}><i class="fa-solid fa-plus" aria-hidden="true"></i></button>
       </div>` : '';
 
     return `
@@ -382,14 +402,15 @@
     const total = side === 'left' ? elements.leftTotal : elements.rightTotal;
     if (!list) return;
 
+    const usedSlots = lineSlots(lines, state.mode);
     list.innerHTML = lines.map((line) => fruitRow(line, side)).join('');
-    if (count) count.textContent = t('calculator.side.capacity', `${lines.length}/4 fruits`, { count: lines.length });
+    if (count) count.textContent = t('calculator.side.capacity', `${usedSlots}/4 fruits`, { count: usedSlots });
     if (empty) empty.hidden = lines.length > 0;
     if (total) total.textContent = formatValue(linesTotal(lines));
 
     document.querySelectorAll(`[data-open-picker="${side}"]`).forEach((button) => {
-      button.disabled = lines.length >= MAX_FRUITS;
-      button.setAttribute('aria-disabled', String(lines.length >= MAX_FRUITS));
+      button.disabled = false;
+      button.setAttribute('aria-disabled', 'false');
     });
     document.querySelectorAll(`[data-clear-side="${side}"]`).forEach((button) => {
       button.disabled = lines.length === 0;
@@ -484,7 +505,12 @@
     const lines = side === 'left' ? state.left : state.right;
     const line = lines.find((item) => item.fruitId === fruitId);
     if (!line || state.mode === 'permanent') return;
-    line.quantity = Math.min(MAX_QUANTITY, Math.max(1, line.quantity + delta));
+    if (delta > 0 && lineSlots(lines, state.mode) >= MAX_FRUITS) {
+      setAlert(t('calculator.feedback.maxReached', 'Tu as atteint la limite de quatre fruits pour ce côté.'));
+      showToast(t('calculator.picker.limit', 'Maximum quatre fruits par côté.'), 'warning');
+      return;
+    }
+    line.quantity = Math.min(MAX_QUANTITY, Math.max(1, line.quantity + (delta > 0 ? 1 : -1)));
     renderAll({ persist: true });
   }
 
@@ -534,11 +560,6 @@
   function openPicker(side, trigger) {
     if (!['left', 'right'].includes(side) || !elements.pickerModal) return;
     const lines = side === 'left' ? state.left : state.right;
-    if (lines.length >= MAX_FRUITS) {
-      setAlert(t('calculator.feedback.maxReached', 'Tu as atteint la limite de quatre fruits pour ce côté.'));
-      showToast(t('calculator.picker.limit', 'Maximum quatre fruits par côté.'), 'warning');
-      return;
-    }
     pickerSide = side;
     pickerReturnFocus = trigger || document.activeElement;
     pickerActiveFruitId = lines[0]?.fruitId || null;
@@ -567,27 +588,41 @@
     return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   }
 
-  function pickerOption(fruit, selected, disabled, tabbable) {
+  function pickerOption(fruit, line, disabled, tabbable, usedSlots) {
     const fruitId = slugify(fruit.name);
     const value = formatValue(valueFor(fruit));
+    const selected = Boolean(line);
+    const quantity = selected ? (state.mode === 'permanent' ? 1 : line.quantity) : 0;
     const sideKey = pickerSide === 'left' ? 'calculator.picker.addYoursAria' : 'calculator.picker.addTheirsAria';
     const baseLabel = t(sideKey, `Ajouter ${fruit.name}`, { fruit: fruit.name });
-    const selectedLabel = t('calculator.picker.selectedAria', `${fruit.name} sélectionné`, { fruit: fruit.name });
+    const selectedLabel = t('calculator.picker.removeAria', `Retirer ${fruit.name} de cette offre`, { fruit: fruit.name });
+    const decreaseLabel = t('calculator.quantity.decreaseAria', `Réduire la quantité de ${fruit.name}`, { fruit: fruit.name });
+    const increaseLabel = t('calculator.quantity.increaseAria', `Augmenter la quantité de ${fruit.name}`, { fruit: fruit.name });
+    const quantityControls = selected && state.mode === 'physical' ? `
+      <span class="calc-picker-quantity" role="group" aria-label="${escapeHtml(t('calculator.picker.quantityAria', `Quantité de ${fruit.name} : ${quantity}`, { fruit: fruit.name, count: quantity }))}">
+        <button type="button" data-picker-quantity data-fruit-id="${fruitId}" data-quantity-delta="-1" aria-label="${escapeHtml(decreaseLabel)}" title="${escapeHtml(decreaseLabel)}" ${quantity <= 1 ? 'disabled' : ''}><i class="fa-solid fa-minus" aria-hidden="true"></i></button>
+        <b aria-hidden="true">×${quantity}</b>
+        <button type="button" data-picker-quantity data-fruit-id="${fruitId}" data-quantity-delta="1" aria-label="${escapeHtml(increaseLabel)}" title="${escapeHtml(increaseLabel)}" ${usedSlots >= MAX_FRUITS ? 'disabled' : ''}><i class="fa-solid fa-plus" aria-hidden="true"></i></button>
+      </span>` : '';
     return `
-      <button class="calc-picker-option${selected ? ' is-selected' : ''}" type="button" data-picker-fruit="${fruitId}" aria-pressed="${selected}" aria-label="${escapeHtml(selected ? selectedLabel : `${baseLabel}, ${value}`)}" tabindex="${tabbable ? '0' : '-1'}" ${disabled ? 'disabled' : ''}>
-        <span class="calc-picker-art"><img src="${fruitImagePath(fruit)}" alt="" width="64" height="64"></span>
-        <span class="calc-picker-copy"><strong>${escapeHtml(fruit.name)}</strong><small>${escapeHtml(t(`rarity.${fruit.rarity}`, fruit.rarity))} · ${escapeHtml(value)}</small></span>
-        <span class="calc-picker-check" aria-hidden="true"><i class="fa-solid ${selected ? 'fa-check' : 'fa-plus'}"></i></span>
-      </button>`;
+      <article class="calc-picker-option${selected ? ' is-selected' : ''}${disabled ? ' is-disabled' : ''}">
+        <button class="calc-picker-choice" type="button" data-picker-fruit="${fruitId}" aria-pressed="${selected}" aria-label="${escapeHtml(selected ? selectedLabel : `${baseLabel}, ${value}`)}" tabindex="${tabbable ? '0' : '-1'}" ${disabled ? 'disabled' : ''}>
+          <span class="calc-picker-art"><img src="${fruitImagePath(fruit)}" alt="" width="64" height="64"></span>
+          <span class="calc-picker-copy"><strong>${escapeHtml(fruit.name)}</strong><small>${escapeHtml(t(`rarity.${fruit.rarity}`, fruit.rarity))} · ${escapeHtml(value)}</small></span>
+          ${quantityControls ? '' : `<span class="calc-picker-check" aria-hidden="true"><i class="fa-solid ${selected ? 'fa-check' : 'fa-plus'}"></i></span>`}
+        </button>
+        ${quantityControls}
+      </article>`;
   }
 
-  function renderPicker({ focusFruitId = null } = {}) {
+  function renderPicker({ focusFruitId = null, focusQuantityDelta = null } = {}) {
     if (!pickerSide || !elements.pickerList) return;
     const lines = pickerSide === 'left' ? state.left : state.right;
-    const selected = new Set(lines.map((line) => line.fruitId));
+    const selected = new Map(lines.map((line) => [line.fruitId, line]));
+    const usedSlots = lineSlots(lines, state.mode);
     const query = normalizeSearch(elements.pickerSearch?.value);
     const filtered = fruits.filter((fruit) => normalizeSearch(`${fruit.name} ${fruit.rarity} ${fruit.type}`).includes(query));
-    const atLimit = lines.length >= MAX_FRUITS;
+    const atLimit = usedSlots >= MAX_FRUITS;
     const enabledIds = filtered
       .map((fruit) => slugify(fruit.name))
       .filter((fruitId) => !atLimit || selected.has(fruitId));
@@ -601,19 +636,29 @@
         ? t('calculator.picker.titleYours', 'Ajouter à ton offre')
         : t('calculator.picker.titleTheirs', 'Ajouter à leur offre');
     }
+    if (elements.pickerCopy) {
+      elements.pickerCopy.textContent = state.mode === 'physical'
+        ? t('calculator.picker.copyPhysical', 'Sélectionne jusqu’à quatre fruits au total. Utilise + pour répéter un fruit.')
+        : t('calculator.picker.copyPermanent', 'Sélectionne jusqu’à quatre fruits permanents différents.');
+    }
     elements.pickerList.innerHTML = filtered.map((fruit) => {
       const fruitId = slugify(fruit.name);
-      const isSelected = selected.has(fruitId);
-      return pickerOption(fruit, isSelected, atLimit && !isSelected, fruitId === pickerActiveFruitId);
+      const line = selected.get(fruitId) || null;
+      return pickerOption(fruit, line, atLimit && !line, fruitId === pickerActiveFruitId, usedSlots);
     }).join('');
     if (elements.pickerEmpty) elements.pickerEmpty.hidden = filtered.length > 0;
-    if (elements.pickerCount) elements.pickerCount.textContent = t('calculator.picker.selected', `${lines.length} sur 4 sélectionné(s)`, { count: lines.length });
+    if (elements.pickerCount) elements.pickerCount.textContent = t('calculator.picker.slots', `${usedSlots}/4 places utilisées`, { count: usedSlots, limit: MAX_FRUITS });
     if (elements.pickerDone) elements.pickerDone.disabled = false;
     if (elements.pickerClearSearch) elements.pickerClearSearch.hidden = !query;
     if (requestedFocusId && pickerActiveFruitId) {
       window.requestAnimationFrame(() => {
-        const target = Array.from(elements.pickerList.querySelectorAll('[data-picker-fruit]'))
-          .find((button) => button.dataset.pickerFruit === pickerActiveFruitId);
+        const quantitySelector = focusQuantityDelta === null
+          ? ''
+          : `[data-picker-quantity][data-fruit-id="${pickerActiveFruitId}"][data-quantity-delta="${focusQuantityDelta}"]:not([disabled])`;
+        const target = (quantitySelector ? elements.pickerList.querySelector(quantitySelector) : null)
+          || (focusQuantityDelta === null ? null : elements.pickerList.querySelector(`[data-picker-quantity][data-fruit-id="${pickerActiveFruitId}"]:not([disabled])`))
+          || Array.from(elements.pickerList.querySelectorAll('[data-picker-fruit]'))
+            .find((button) => button.dataset.pickerFruit === pickerActiveFruitId);
         target?.focus();
       });
     }
@@ -625,7 +670,7 @@
     const existingIndex = lines.findIndex((line) => line.fruitId === fruitId);
     if (existingIndex >= 0) {
       lines.splice(existingIndex, 1);
-    } else if (lines.length >= MAX_FRUITS) {
+    } else if (lineSlots(lines, state.mode) >= MAX_FRUITS) {
       setAlert(t('calculator.feedback.maxReached', 'Tu as atteint la limite de quatre fruits pour ce côté.'));
       showToast(t('calculator.picker.limit', 'Maximum quatre fruits par côté.'), 'warning');
       return;
@@ -635,6 +680,26 @@
     renderSide(pickerSide);
     renderResult();
     renderPicker({ focusFruitId: fruitId });
+    persistState();
+  }
+
+  function changePickerQuantity(fruitId, delta) {
+    if (!pickerSide || state.mode !== 'physical') return;
+    const lines = pickerSide === 'left' ? state.left : state.right;
+    const line = lines.find((item) => item.fruitId === fruitId);
+    if (!line) return;
+    const direction = delta > 0 ? 1 : -1;
+    if (direction > 0 && lineSlots(lines, state.mode) >= MAX_FRUITS) {
+      setAlert(t('calculator.feedback.maxReached', 'Tu as atteint la limite de quatre fruits pour ce côté.'));
+      showToast(t('calculator.picker.limit', 'Maximum quatre fruits par côté.'), 'warning');
+      return;
+    }
+    const nextQuantity = Math.min(MAX_QUANTITY, Math.max(1, line.quantity + direction));
+    if (nextQuantity === line.quantity) return;
+    line.quantity = nextQuantity;
+    renderSide(pickerSide);
+    renderResult();
+    renderPicker({ focusFruitId: fruitId, focusQuantityDelta: direction });
     persistState();
   }
 
@@ -875,6 +940,12 @@
     const clearButton = event.target.closest('[data-clear-side]');
     if (clearButton) {
       clearSide(clearButton.dataset.clearSide);
+      return;
+    }
+
+    const pickerQuantity = event.target.closest('[data-picker-quantity]');
+    if (pickerQuantity) {
+      changePickerQuantity(pickerQuantity.dataset.fruitId, Number(pickerQuantity.dataset.quantityDelta));
       return;
     }
 
