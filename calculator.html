@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Compare jusqu’à quatre fruits de chaque côté avec les valeurs du wiki Blox Fruits." data-i18n-content="calculator.meta.description">
+  <meta name="theme-color" content="#07111f">
+  <title data-i18n="calculator.meta.title">Calculateur d’échange · Itemsouq Fruits</title>
+  <link rel="icon" href="assets/favicon.svg?v=2" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="assets/css/style.css?v=20260902-4">
+  <link rel="stylesheet" href="assets/css/features.css?v=20260902-4">
+  <link rel="stylesheet" href="assets/css/calculator.css?v=20260902-4">
+</head>
+<body class="calculator-page">
+  <a class="skip-link" href="#calculator-workspace" data-i18n="calculator.skip">Aller au calculateur</a>
+
+  <div class="announcement calculator-announcement">
+    <div class="container announcement-inner">
+      <span><i class="fa-solid fa-scale-balanced" aria-hidden="true"></i> <span data-i18n="calculator.announcement.values">Valeurs du wiki · Comparaison locale</span></span>
+      <span class="announcement-payments" data-i18n="calculator.announcement.notice">Repère uniquement · Aucun échange effectué ici</span>
+    </div>
+  </div>
+
+  <header class="site-header" id="top">
+    <div class="container header-inner">
+      <a class="brand" href="index.html" aria-label="Itemsouq Fruits, accueil" data-i18n-aria="trading.brandHomeAria">
+        <span class="brand-mark" aria-hidden="true"><img src="assets/brand/itemsouq-mark.svg" alt="" width="64" height="64"></span>
+        <span class="brand-copy"><strong>ITEMSOUQ</strong><small>FRUITS MARKET</small></span>
+      </a>
+
+      <button class="mobile-language-control" type="button" data-language-toggle aria-label="Afficher le site en Darija" title="Afficher le site en Darija">
+        <i class="fa-solid fa-language" aria-hidden="true"></i>
+        <span data-language-label>FR</span>
+      </button>
+
+      <nav class="desktop-nav" aria-label="Navigation principale" data-i18n-aria="aria.mainNavigation">
+        <a href="index.html" data-i18n="nav.home">Accueil</a>
+        <a href="index.html#catalogue" data-i18n="nav.catalogue">Catalogue</a>
+        <a class="nav-active" href="calculator.html" aria-current="page" data-i18n="nav.calculator">Calculateur</a>
+        <a href="trading.html" data-i18n="nav.trading">Trading</a>
+        <a href="index.html#comment-acheter" data-i18n="nav.how">Comment acheter</a>
+        <a href="index.html#faq" data-i18n="nav.faq">FAQ</a>
+      </nav>
+
+      <div class="header-actions">
+        <button class="icon-action language-toggle header-utility" type="button" data-language-toggle aria-label="Afficher le site en Darija">
+          <i class="fa-solid fa-language" aria-hidden="true"></i>
+          <span class="utility-label" data-language-label>FR</span>
+        </button>
+        <a class="cart-trigger calculator-trading-trigger" href="trading.html" aria-label="Voir les offres" title="Voir les offres" data-i18n-aria="calculator.heroBrowseTrades" data-i18n-title="calculator.heroBrowseTrades">
+          <i class="fa-solid fa-right-left" aria-hidden="true"></i>
+          <span data-i18n="calculator.heroBrowseTrades">Voir les offres</span>
+        </a>
+        <button class="mobile-menu-trigger" type="button" aria-label="Ouvrir le menu" data-i18n-aria="aria.openMenu" aria-controls="mobile-menu" aria-expanded="false">
+          <i class="fa-solid fa-bars" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>
+
+    <nav class="mobile-menu" id="mobile-menu" aria-label="Navigation mobile" data-i18n-aria="aria.mobileNavigation" hidden>
+      <a href="index.html"><i class="fa-solid fa-house" aria-hidden="true"></i> <span data-i18n="nav.home">Accueil</span></a>
+      <a href="index.html#catalogue"><i class="fa-solid fa-store" aria-hidden="true"></i> <span data-i18n="nav.catalogue">Catalogue</span></a>
+      <a class="mobile-active" href="calculator.html" aria-current="page"><i class="fa-solid fa-calculator" aria-hidden="true"></i> <span data-i18n="nav.calculator">Calculateur</span></a>
+      <a href="trading.html"><i class="fa-solid fa-right-left" aria-hidden="true"></i> <span data-i18n="nav.trading">Trading</span></a>
+      <a href="index.html#comment-acheter"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> <span data-i18n="nav.how">Comment acheter</span></a>
+      <a href="index.html#faq"><i class="fa-solid fa-comments" aria-hidden="true"></i> <span data-i18n="nav.faq">FAQ</span></a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="calculator-hero" aria-labelledby="calculator-hero-title">
+      <div class="container calculator-hero-layout">
+        <div class="calculator-hero-copy">
+          <div class="calculator-eyebrow"><span class="live-dot"></span> <span data-i18n="calculator.heroEyebrow">OUTIL DE COMPARAISON · DÉMO</span></div>
+          <h1 id="calculator-hero-title" data-i18n-html="calculator.heroTitle">Compare avant<br><span>d’accepter l’échange.</span></h1>
+          <p data-i18n="calculator.heroCopy">Compose les deux côtés, compare leur valeur wiki et repère rapidement qui donne le plus.</p>
+          <div class="calculator-hero-actions">
+            <a class="btn btn-primary btn-large" href="#calculator-workspace"><i class="fa-solid fa-calculator" aria-hidden="true"></i> <span data-i18n="calculator.heroStart">Commencer le calcul</span></a>
+            <a class="btn calculator-ghost-button btn-large" href="trading.html"><span data-i18n="calculator.heroBrowseTrades">Voir les offres</span> <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
+          </div>
+          <div class="calculator-hero-trust">
+            <span><i class="fa-solid fa-database" aria-hidden="true"></i> <span data-i18n="calculator.source.copy">Les noms et valeurs Beli/Robux viennent du wiki Blox Fruits sur Fandom.</span></span>
+            <span><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> <span data-i18n="calculator.announcement.notice">Repère uniquement · Aucun échange effectué ici</span></span>
+          </div>
+        </div>
+
+        <div class="calculator-hero-preview" aria-hidden="true">
+          <div class="calculator-preview-top">
+            <span><i class="fa-solid fa-chart-simple"></i> <span data-i18n="calculator.result.kicker">RÉSULTAT</span></span>
+            <b data-i18n="calculator.result.uneven">Déséquilibré</b>
+          </div>
+          <div class="calculator-preview-sides">
+            <div class="calculator-preview-fruit">
+              <span class="calculator-preview-image dragon"><img src="assets/images/fruits/dragon.webp" alt="" width="512" height="498"></span>
+              <small data-i18n="calculator.side.yours">TON OFFRE</small>
+              <strong>Dragon</strong>
+              <b>15 000 000 Beli</b>
+            </div>
+            <span class="calculator-preview-swap"><i class="fa-solid fa-arrow-right-arrow-left"></i></span>
+            <div class="calculator-preview-fruit">
+              <span class="calculator-preview-image kitsune"><img src="assets/images/fruits/kitsune.webp" alt="" width="512" height="512"></span>
+              <small data-i18n="calculator.side.theirs">LEUR OFFRE</small>
+              <strong>Kitsune</strong>
+              <b>8 000 000 Beli</b>
+            </div>
+          </div>
+          <div class="calculator-preview-foot"><i class="fa-solid fa-circle-info"></i> <span data-i18n="calculator.result.marketNote">La demande réelle entre joueurs peut modifier l’intérêt de l’échange.</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="calculator-workspace-section" id="calculator-workspace" aria-labelledby="calculator-title">
+      <div class="container">
+        <div class="calculator-shell">
+          <header class="calculator-workspace-head">
+            <div>
+              <span class="section-kicker" data-i18n="calculator.workspaceKicker">CALCULATEUR D’ÉCHANGE</span>
+              <h2 id="calculator-title" data-i18n="calculator.workspaceTitle">Compare les deux offres</h2>
+              <p data-i18n="calculator.workspaceCopy">Ajoute de 1 à 4 fruits de chaque côté. Le résultat se met à jour automatiquement.</p>
+            </div>
+            <button class="btn btn-secondary calculator-reset-button" id="calc-reset" type="button">
+              <i class="fa-solid fa-rotate-left" aria-hidden="true"></i> <span data-i18n="calculator.action.reset">Recommencer</span>
+            </button>
+          </header>
+
+          <div class="calculator-format-panel">
+            <fieldset class="calculator-mode" id="calculator-mode" aria-describedby="calc-mode-help">
+              <legend data-i18n="calculator.formatLegend">Format des fruits</legend>
+              <div class="calculator-mode-options">
+                <label class="calculator-mode-option">
+                  <input type="radio" name="calc-mode" value="physical" checked>
+                  <span class="calculator-mode-icon"><i class="fa-solid fa-box-open" aria-hidden="true"></i></span>
+                  <span class="calculator-mode-copy"><strong data-i18n="trading.mode.physical">Physique</strong><small data-i18n="calculator.formatPhysicalHint">Comparaison avec les valeurs Beli</small></span>
+                  <span class="calculator-mode-check" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+                </label>
+                <label class="calculator-mode-option">
+                  <input type="radio" name="calc-mode" value="permanent">
+                  <span class="calculator-mode-icon"><i class="fa-solid fa-infinity" aria-hidden="true"></i></span>
+                  <span class="calculator-mode-copy"><strong data-i18n="trading.mode.permanent">Permanent</strong><small data-i18n="calculator.formatPermanentHint">Comparaison avec les valeurs Robux</small></span>
+                  <span class="calculator-mode-check" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+                </label>
+              </div>
+            </fieldset>
+            <p class="calculator-format-help" id="calc-mode-help"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> <span data-i18n="calculator.formatHelp">Le même format est utilisé des deux côtés pour garder une comparaison cohérente.</span></p>
+          </div>
+
+          <div class="calculator-board" aria-label="Calculateur d’échange" data-i18n-aria="calculator.aria.main">
+            <fieldset class="calculator-side calculator-side-left" data-calc-side="left">
+              <legend class="sr-only" data-i18n="calculator.aria.yourSide">Fruits de ton offre</legend>
+              <div class="calculator-side-head">
+                <div><span class="calculator-side-kicker give"><i class="fa-solid fa-arrow-up" aria-hidden="true"></i> <span data-i18n="calculator.side.yours">TON OFFRE</span></span><h3 data-i18n="calculator.side.youGive">Tu proposes</h3></div>
+                <div class="calculator-side-tools">
+                  <span class="calculator-side-count" id="calc-left-count">0/4 fruits</span>
+                  <button class="calculator-side-clear" type="button" data-clear-side="left" disabled title="Vider ce côté" data-i18n-title="calculator.side.clear"><i class="fa-regular fa-trash-can" aria-hidden="true"></i><span class="sr-only" data-i18n="calculator.side.clear">Vider ce côté</span></button>
+                </div>
+              </div>
+              <div class="calculator-fruit-list" id="calc-left-list" aria-live="polite"></div>
+              <div class="calculator-side-empty" id="calc-left-empty">
+                <span><i class="fa-solid fa-apple-whole" aria-hidden="true"></i></span>
+                <p data-i18n="calculator.side.emptyYours">Ajoute le premier fruit que tu proposes.</p>
+              </div>
+              <button class="calculator-add-fruit" type="button" data-open-picker="left" aria-haspopup="dialog" aria-controls="calc-picker-modal" aria-expanded="false">
+                <i class="fa-solid fa-plus" aria-hidden="true"></i> <span data-i18n="calculator.side.addYours">Ajouter à ton offre</span>
+              </button>
+              <div class="calculator-side-total"><span data-i18n="calculator.side.total">Total wiki</span><strong id="calc-left-total">0 Beli</strong></div>
+            </fieldset>
+
+            <div class="calculator-swap-rail">
+              <button class="calculator-swap-button" id="calc-swap" type="button" aria-label="Inverser ton offre et leur offre" title="Inverser les offres" data-i18n-aria="calculator.action.swapAria" data-i18n-title="calculator.action.swap">
+                <i class="fa-solid fa-arrow-right-arrow-left" aria-hidden="true"></i><span class="sr-only" data-i18n="calculator.action.swap">Inverser les offres</span>
+              </button>
+            </div>
+
+            <fieldset class="calculator-side calculator-side-right" data-calc-side="right">
+              <legend class="sr-only" data-i18n="calculator.aria.theirSide">Fruits de leur offre</legend>
+              <div class="calculator-side-head">
+                <div><span class="calculator-side-kicker want"><i class="fa-solid fa-arrow-down" aria-hidden="true"></i> <span data-i18n="calculator.side.theirs">LEUR OFFRE</span></span><h3 data-i18n="calculator.side.theyGive">L’autre joueur propose</h3></div>
+                <div class="calculator-side-tools">
+                  <span class="calculator-side-count" id="calc-right-count">0/4 fruits</span>
+                  <button class="calculator-side-clear" type="button" data-clear-side="right" disabled title="Vider ce côté" data-i18n-title="calculator.side.clear"><i class="fa-regular fa-trash-can" aria-hidden="true"></i><span class="sr-only" data-i18n="calculator.side.clear">Vider ce côté</span></button>
+                </div>
+              </div>
+              <div class="calculator-fruit-list" id="calc-right-list" aria-live="polite"></div>
+              <div class="calculator-side-empty" id="calc-right-empty">
+                <span><i class="fa-solid fa-apple-whole" aria-hidden="true"></i></span>
+                <p data-i18n="calculator.side.emptyTheirs">Ajoute le premier fruit proposé en face.</p>
+              </div>
+              <button class="calculator-add-fruit" type="button" data-open-picker="right" aria-haspopup="dialog" aria-controls="calc-picker-modal" aria-expanded="false">
+                <i class="fa-solid fa-plus" aria-hidden="true"></i> <span data-i18n="calculator.side.addTheirs">Ajouter à leur offre</span>
+              </button>
+              <div class="calculator-side-total"><span data-i18n="calculator.side.total">Total wiki</span><strong id="calc-right-total">0 Beli</strong></div>
+            </fieldset>
+          </div>
+
+          <section class="calculator-result is-waiting" id="calc-result" aria-live="polite" aria-atomic="true" aria-labelledby="calc-result-label">
+            <div class="calculator-result-head">
+              <span class="calculator-result-icon" aria-hidden="true"><i class="fa-solid fa-scale-balanced" id="calc-result-icon"></i></span>
+              <div class="calculator-result-copy">
+                <span class="calculator-result-kicker" data-i18n="calculator.result.kicker">RÉSULTAT</span>
+                <h3 id="calc-result-label">Compose les deux offres</h3>
+                <p id="calc-result-copy">Ajoute au moins un fruit de chaque côté pour afficher la comparaison.</p>
+              </div>
+              <div class="calculator-result-metrics" aria-hidden="true">
+                <span class="calculator-score-ring" id="calc-score-ring"><strong id="calc-score">—</strong></span>
+                <strong class="calculator-result-gap" id="calc-result-gap">—</strong>
+              </div>
+            </div>
+            <div class="calculator-result-values" aria-hidden="true">
+              <div class="calculator-result-side">
+                <span data-i18n="calculator.side.yours">TON OFFRE</span><strong id="calc-result-left">0 Beli</strong>
+                <span class="calculator-value-bar"><i id="calc-left-bar"></i></span>
+              </div>
+              <div class="calculator-result-divider"><i class="fa-solid fa-right-left"></i></div>
+              <div class="calculator-result-side is-right">
+                <span data-i18n="calculator.side.theirs">LEUR OFFRE</span><strong id="calc-result-right">0 Beli</strong>
+                <span class="calculator-value-bar"><i id="calc-right-bar"></i></span>
+              </div>
+            </div>
+            <p class="calculator-market-note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> <span data-i18n="calculator.result.marketNote">La demande réelle entre joueurs peut modifier l’intérêt de l’échange.</span></p>
+          </section>
+
+          <div class="calculator-actions">
+            <button class="btn btn-secondary" id="calc-save" type="button" disabled><i class="fa-regular fa-floppy-disk" aria-hidden="true"></i> <span data-i18n="calculator.action.save">Enregistrer le calcul</span></button>
+            <button class="btn btn-secondary" id="calc-share" type="button" disabled aria-label="Partager le calcul" data-i18n-aria="calculator.aria.share"><i class="fa-solid fa-share-nodes" aria-hidden="true"></i> <span data-i18n="calculator.action.share">Partager</span></button>
+            <button class="btn btn-secondary calculator-copy-action" id="calc-copy" type="button" disabled aria-label="Copier le résumé du calcul" data-i18n-aria="calculator.aria.copy"><i class="fa-regular fa-copy" aria-hidden="true"></i> <span data-i18n="calculator.action.copy">Copier le résumé</span></button>
+            <a class="btn calculator-whatsapp-action is-disabled" id="calc-whatsapp" href="#" aria-disabled="true" tabindex="-1" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i> <span data-i18n="hero.whatsapp">Ouvrir WhatsApp</span></a>
+            <a class="btn btn-primary" id="calc-find-offers" href="trading.html"><i class="fa-solid fa-right-left" aria-hidden="true"></i> <span data-i18n="calculator.action.openTrading">Voir les offres Trading</span></a>
+          </div>
+
+          <aside class="calculator-disclaimer" role="note">
+            <span class="calculator-disclaimer-icon"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i></span>
+            <div><strong data-i18n="calculator.source.title">Un repère, pas un prix de marché</strong><p data-i18n="calculator.source.disclaimer">Ce calcul compare les valeurs officielles du wiki. Il ne mesure ni la demande communautaire ni une valeur de marché garantie.</p></div>
+            <a href="https://blox-fruits.fandom.com/wiki/Blox_Fruits" target="_blank" rel="noopener"><span data-i18n="calculator.source.link">Consulter la source des valeurs</span> <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <section class="calculator-history-section" id="calc-history-section" aria-labelledby="calc-history-title">
+      <div class="container">
+        <header class="calculator-history-head">
+          <div><span class="section-kicker" data-i18n="calculator.history.kicker">SAUVEGARDÉ SUR CET APPAREIL</span><h2 id="calc-history-title" data-i18n="calculator.history.title">Calculs récents</h2><p data-i18n="calculator.history.copy">Retrouve tes dernières comparaisons dans ce navigateur.</p></div>
+          <button class="btn btn-secondary" id="calc-history-clear" type="button" disabled><i class="fa-regular fa-trash-can" aria-hidden="true"></i> <span data-i18n="calculator.history.clear">Tout effacer</span></button>
+        </header>
+        <div class="calculator-history" id="calc-history" role="list" aria-label="Calculs récents" data-i18n-aria="calculator.aria.history"></div>
+        <div class="calculator-history-empty" id="calc-history-empty">
+          <span><i class="fa-regular fa-clock" aria-hidden="true"></i></span>
+          <h3 data-i18n="calculator.history.empty">Aucun calcul enregistré pour le moment.</h3>
+          <p data-i18n="calculator.history.copy">Retrouve tes dernières comparaisons dans ce navigateur.</p>
+          <a class="btn btn-secondary" href="#calculator-workspace"><i class="fa-solid fa-calculator" aria-hidden="true"></i> <span data-i18n="calculator.heroStart">Commencer le calcul</span></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="calculator-how" aria-labelledby="calculator-how-title">
+      <div class="container">
+        <div class="section-heading centered">
+          <span class="section-kicker" data-i18n="calculator.howKicker">COMMENT L’UTILISER ?</span>
+          <h2 id="calculator-how-title" data-i18n="calculator.howTitle">Une comparaison claire en trois étapes</h2>
+          <p data-i18n="calculator.howCopy">Le calcul reste entièrement dans ton navigateur.</p>
+        </div>
+        <div class="calculator-how-grid">
+          <article><span>01</span><i class="fa-solid fa-coins" aria-hidden="true"></i><h3 data-i18n="calculator.step1Title">Choisis le format</h3><p data-i18n="calculator.step1Copy">Compare les fruits physiques en Beli ou permanents en Robux.</p></article>
+          <article><span>02</span><i class="fa-solid fa-layer-group" aria-hidden="true"></i><h3 data-i18n="calculator.step2Title">Compose les deux côtés</h3><p data-i18n="calculator.step2Copy">Ajoute jusqu’à quatre fruits à chaque offre.</p></article>
+          <article><span>03</span><i class="fa-solid fa-scale-balanced" aria-hidden="true"></i><h3 data-i18n="calculator.step3Title">Lis le résultat avec recul</h3><p data-i18n="calculator.step3Copy">Vérifie toujours la demande et l’échange dans le jeu avant d’accepter.</p></article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-grid">
+      <div>
+        <a class="brand footer-brand" href="index.html" aria-label="Itemsouq Fruits, accueil" data-i18n-aria="trading.brandHomeAria">
+          <span class="brand-mark" aria-hidden="true"><img src="assets/brand/itemsouq-mark.svg" alt="" width="64" height="64" loading="lazy"></span>
+          <span class="brand-copy"><strong>ITEMSOUQ</strong><small>FRUITS MARKET</small></span>
+        </a>
+        <p data-i18n="calculator.source.copy">Les noms et valeurs Beli/Robux viennent du wiki Blox Fruits sur Fandom.</p>
+      </div>
+      <div>
+        <h3 data-i18n="trading.footer.explore">Explorer</h3>
+        <a href="index.html#catalogue" data-i18n="trading.footer.shop">La boutique</a>
+        <a href="trading.html" data-i18n="trading.footer.offers">Offres Trading</a>
+        <a href="calculator.html" data-i18n="footer.tradeCalculator">Calculateur d’échange</a>
+      </div>
+      <div>
+        <h3 data-i18n="trading.footer.help">Aide</h3>
+        <a href="index.html#comment-acheter" data-i18n="nav.how">Comment acheter</a>
+        <a href="index.html#faq" data-i18n="trading.footer.faq">Questions fréquentes</a>
+        <a href="https://blox-fruits.fandom.com/wiki/Blox_Fruits" target="_blank" rel="noopener" data-i18n="trading.footer.source">Source des valeurs</a>
+      </div>
+      <div>
+        <h3 data-i18n="trading.footer.important">Important</h3>
+        <p class="footer-small" data-i18n="calculator.source.disclaimer">Ce calcul compare les valeurs officielles du wiki. Il ne mesure ni la demande communautaire ni une valeur de marché garantie.</p>
+      </div>
+    </div>
+    <div class="container footer-bottom"><span data-i18n="trading.footer.copyright">© 2026 Itemsouq · Concept de démonstration</span><span data-i18n="trading.footer.disclaimer">Non affilié à Roblox ou Blox Fruits</span></div>
+  </footer>
+
+  <div class="modal-shell calculator-picker-modal" id="calc-picker-modal" role="dialog" aria-modal="true" aria-labelledby="calc-picker-title" hidden>
+    <div class="modal-card calculator-picker-card">
+      <div class="modal-head calculator-picker-head">
+        <div><span class="drawer-kicker" data-i18n="calculator.workspaceKicker">CALCULATEUR D’ÉCHANGE</span><h2 id="calc-picker-title" tabindex="-1" data-i18n="calculator.picker.titleYours">Ajouter à ton offre</h2><p data-i18n="calculator.picker.copy">Sélectionne jusqu’à quatre fruits.</p></div>
+        <button class="modal-close" type="button" data-close-picker aria-label="Fermer le sélecteur de fruits" data-i18n-aria="calculator.picker.closeAria"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+      </div>
+      <div class="modal-body calculator-picker-body">
+        <label class="calculator-picker-search">
+          <span class="sr-only" data-i18n="calculator.picker.searchLabel">Rechercher un fruit</span>
+          <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+          <input id="calc-picker-search" type="search" placeholder="Rechercher Dragon, Kitsune…" data-i18n-placeholder="calculator.picker.searchPlaceholder" autocomplete="off">
+        </label>
+        <div class="calculator-picker-meta"><span id="calc-picker-count" aria-live="polite">0 sur 4 sélectionné(s)</span><button type="button" id="calc-picker-clear-search" data-i18n="calculator.picker.clearSearch">Effacer la recherche</button></div>
+        <div class="calculator-picker-list" id="calc-picker-list" role="group" aria-label="Sélectionner des fruits" data-i18n-aria="calculator.picker.copy"></div>
+        <div class="calculator-picker-empty" id="calc-picker-empty" hidden>
+          <span><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span>
+          <p data-i18n="calculator.picker.noResults">Aucun fruit ne correspond à cette recherche.</p>
+        </div>
+      </div>
+      <div class="modal-foot calculator-picker-foot">
+        <button class="btn btn-secondary" type="button" data-close-picker data-i18n="trading.close">Fermer</button>
+        <button class="btn btn-primary" id="calc-picker-done" type="button"><span data-i18n="calculator.picker.done">Terminer</span> <i class="fa-solid fa-check" aria-hidden="true"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast calculator-toast" id="calc-toast" role="status" aria-live="polite" aria-atomic="true" hidden>
+    <span class="toast-icon"><i class="fa-solid fa-check" aria-hidden="true"></i></span><span id="calc-toast-message">Calcul enregistré</span>
+  </div>
+  <div class="sr-only" id="calc-alert" role="alert" aria-live="assertive" aria-atomic="true"></div>
+
+  <aside class="calculator-mobile-summary calc-mobile-summary" id="calc-mobile-summary" aria-hidden="true" hidden>
+    <span><small data-i18n="calculator.side.yours">TON OFFRE</small><strong id="calc-mobile-left">0 Beli</strong></span>
+    <span class="calculator-mobile-verdict"><i class="fa-solid fa-scale-balanced"></i><b id="calc-mobile-verdict">Compose les deux offres</b></span>
+    <span class="is-right"><small data-i18n="calculator.side.theirs">LEUR OFFRE</small><strong id="calc-mobile-right">0 Beli</strong></span>
+  </aside>
+
+  <nav class="mobile-bottom-nav" aria-label="Navigation rapide" data-i18n-aria="aria.quickNavigation">
+    <a href="index.html"><i class="fa-solid fa-house" aria-hidden="true"></i><span data-i18n="mobile.home">Accueil</span></a>
+    <a href="index.html#catalogue"><i class="fa-solid fa-store" aria-hidden="true"></i><span data-i18n="mobile.shop">Boutique</span></a>
+    <a href="trading.html"><i class="fa-solid fa-right-left" aria-hidden="true"></i><span data-i18n="mobile.trade">Trading</span></a>
+    <a href="calculator.html" class="active" aria-current="page"><i class="fa-solid fa-calculator" aria-hidden="true"></i><span data-i18n="mobile.calculator">Calcul</span></a>
+    <a href="#calc-history-section"><i class="fa-regular fa-clock" aria-hidden="true"></i><span data-i18n="calculator.mobile.history">Historique</span></a>
+  </nav>
+
+  <script src="assets/js/config.js?v=20260902-4"></script>
+  <script src="assets/js/fruits.js?v=20260902-4"></script>
+  <script src="assets/js/locale.js?v=20260902-4"></script>
+  <script src="assets/js/calculator.js?v=20260902-4"></script>
+</body>
+</html>

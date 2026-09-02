@@ -11,23 +11,23 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/style.css">
-  <link rel="stylesheet" href="assets/css/trading.css">
-  <link rel="stylesheet" href="assets/css/features.css">
+  <link rel="stylesheet" href="assets/css/style.css?v=20260902-4">
+  <link rel="stylesheet" href="assets/css/trading.css?v=20260902-4">
+  <link rel="stylesheet" href="assets/css/features.css?v=20260902-4">
 </head>
 <body class="trading-page">
-  <a class="skip-link" href="#trading-feed">Aller aux offres</a>
+  <a class="skip-link" href="#trading-feed" data-i18n="trading.skipOffers">Aller aux offres</a>
 
   <div class="announcement trade-announcement">
     <div class="container announcement-inner">
-      <span><i class="fa-solid fa-people-arrows" aria-hidden="true"></i> Échanges entre joueurs · Démo locale</span>
-      <span class="announcement-payments">Aucun paiement <b>·</b> Aucun mot de passe <b>·</b> Coordination entre joueurs</span>
+      <span><i class="fa-solid fa-people-arrows" aria-hidden="true"></i> <span data-i18n="trading.announcement.players">Échanges entre joueurs · Démo locale</span></span>
+      <span class="announcement-payments" data-i18n="trading.announcement.rules">Aucun paiement · Aucun mot de passe · Coordination entre joueurs</span>
     </div>
   </div>
 
   <header class="site-header" id="top">
     <div class="container header-inner">
-      <a class="brand" href="index.html" aria-label="Itemsouq Fruits, accueil">
+      <a class="brand" href="index.html" aria-label="Itemsouq Fruits, accueil" data-i18n-aria="trading.brandHomeAria">
         <span class="brand-mark" aria-hidden="true"><img src="assets/brand/itemsouq-mark.svg" alt="" width="64" height="64"></span>
         <span class="brand-copy">
           <strong>ITEMSOUQ</strong>
@@ -35,32 +35,34 @@
         </span>
       </a>
 
-      <nav class="desktop-nav" aria-label="Navigation principale">
+      <nav class="desktop-nav" aria-label="Navigation principale" data-i18n-aria="trading.primaryNavAria">
         <a href="index.html" data-i18n="nav.home">Accueil</a>
         <a href="index.html#catalogue" data-i18n="nav.catalogue">Catalogue</a>
+        <a href="calculator.html" data-i18n="nav.calculator">Calculateur</a>
         <a class="nav-active" href="trading.html" aria-current="page" data-i18n="nav.trading">Trading</a>
         <a href="index.html#comment-acheter" data-i18n="nav.how">Comment acheter</a>
         <a href="index.html#faq" data-i18n="nav.faq">FAQ</a>
       </nav>
 
       <div class="header-actions">
-        <button class="icon-action language-toggle" type="button" data-language-toggle aria-label="Afficher le site en Darija" aria-pressed="false">
+        <button class="icon-action language-toggle header-utility" type="button" data-language-toggle aria-label="Afficher le site en Darija">
           <i class="fa-solid fa-language" aria-hidden="true"></i>
-          <span data-language-label>FR</span>
+          <span class="utility-label" data-language-label>FR</span>
         </button>
         <button class="cart-trigger trading-create-trigger" type="button" data-open-create aria-haspopup="dialog" aria-controls="create-trade-modal" aria-expanded="false">
           <i class="fa-solid fa-plus" aria-hidden="true"></i>
-          <span>Publier une offre</span>
+          <span data-i18n="trading.create">Publier une offre</span>
         </button>
-        <button class="mobile-menu-trigger" type="button" aria-label="Ouvrir le menu" aria-controls="mobile-menu" aria-expanded="false">
+        <button class="mobile-menu-trigger" type="button" aria-label="Ouvrir le menu" data-i18n-aria="trading.menu.open" aria-controls="mobile-menu" aria-expanded="false">
           <i class="fa-solid fa-bars" aria-hidden="true"></i>
         </button>
       </div>
     </div>
 
-    <nav class="mobile-menu" id="mobile-menu" aria-label="Navigation mobile" hidden>
+    <nav class="mobile-menu" id="mobile-menu" aria-label="Navigation mobile" data-i18n-aria="trading.mobileNavAria" hidden>
       <a href="index.html"><i class="fa-solid fa-house" aria-hidden="true"></i> <span data-i18n="nav.home">Accueil</span></a>
       <a href="index.html#catalogue"><i class="fa-solid fa-store" aria-hidden="true"></i> <span data-i18n="nav.catalogue">Catalogue</span></a>
+      <a href="calculator.html"><i class="fa-solid fa-scale-balanced" aria-hidden="true"></i> <span data-i18n="nav.calculator">Calculateur</span></a>
       <a class="mobile-active" href="trading.html" aria-current="page"><i class="fa-solid fa-right-left" aria-hidden="true"></i> <span data-i18n="nav.trading">Trading</span></a>
       <a href="index.html#comment-acheter"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> <span data-i18n="nav.how">Comment acheter</span></a>
       <a href="index.html#faq"><i class="fa-solid fa-comments" aria-hidden="true"></i> <span data-i18n="nav.faq">FAQ</span></a>
@@ -76,7 +78,7 @@
         <div class="trade-hero-copy">
           <div class="trade-eyebrow"><span class="live-dot"></span> <span data-i18n="trading.heroEyebrow">Communauté marocaine · Prototype</span></div>
           <h1 id="trade-hero-title" data-i18n-html="trading.heroTitle">Ton fruit contre<br><span>leur meilleure offre.</span></h1>
-          <p>Teste le parcours d'échange : publie ce que tu proposes, indique ce que tu recherches et prépare des contre-offres — cette démo reste sur ton appareil.</p>
+          <p data-i18n="trading.heroCopy">Teste le parcours d'échange : publie ce que tu proposes, indique ce que tu recherches et prépare des contre-offres — cette démo reste sur ton appareil.</p>
           <div class="trade-hero-actions">
             <button class="btn btn-primary btn-large" type="button" data-open-create aria-haspopup="dialog" aria-controls="create-trade-modal" aria-expanded="false">
               <i class="fa-solid fa-plus" aria-hidden="true"></i> <span data-i18n="trading.create">Publier une offre</span>
@@ -85,45 +87,45 @@
               <span data-i18n="trading.feed">Voir les offres</span> <i class="fa-solid fa-arrow-down" aria-hidden="true"></i>
             </a>
           </div>
-          <div class="trade-hero-trust" aria-label="Règles essentielles">
-            <span><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Ne partage jamais ton mot de passe</span>
-            <span><i class="fa-solid fa-database" aria-hidden="true"></i> Données enregistrées sur cet appareil</span>
+          <div class="trade-hero-trust" aria-label="Règles essentielles" data-i18n-aria="trading.heroRulesAria">
+            <span><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> <span data-i18n="trading.trust.password">Ne partage jamais ton mot de passe</span></span>
+            <span><i class="fa-solid fa-database" aria-hidden="true"></i> <span data-i18n="trading.trust.localData">Données enregistrées sur cet appareil</span></span>
           </div>
         </div>
 
-        <div class="trade-preview" aria-label="Exemple d'offre communautaire">
+        <div class="trade-preview" aria-label="Exemple d'offre communautaire" data-i18n-aria="trading.previewAria">
           <div class="trade-preview-head">
-            <span class="trade-live-label"><i class="fa-solid fa-circle" aria-hidden="true"></i> OFFRE OUVERTE</span>
-            <span class="trade-preview-time">à l'instant</span>
+            <span class="trade-live-label"><i class="fa-solid fa-circle" aria-hidden="true"></i> <span data-i18n="trading.preview.open">OFFRE OUVERTE</span></span>
+            <span class="trade-preview-time" data-i18n="trading.now">à l'instant</span>
           </div>
           <div class="trade-preview-user">
             <span class="trade-avatar">YS</span>
-            <span><strong>Youssef_Casa</strong><small>Joueur marocain · Exemple</small></span>
-            <span class="trade-format-pill"><i class="fa-solid fa-box-open" aria-hidden="true"></i> Physique</span>
+            <span><strong>Youssef_Casa</strong><small data-i18n="trading.preview.player">Joueur marocain · Exemple</small></span>
+            <span class="trade-format-pill"><i class="fa-solid fa-box-open" aria-hidden="true"></i> <span data-i18n="trading.mode.physical">Physique</span></span>
           </div>
           <div class="trade-preview-exchange">
             <div>
-              <small>IL PROPOSE</small>
+              <small data-i18n="trading.preview.gives">IL PROPOSE</small>
               <span class="preview-fruit"><img src="assets/images/fruits/dragon.webp" alt="Fruit Dragon" width="512" height="498"><b>Dragon</b></span>
             </div>
             <span class="trade-swap-icon"><i class="fa-solid fa-arrow-right-arrow-left" aria-hidden="true"></i></span>
             <div>
-              <small>IL RECHERCHE</small>
+              <small data-i18n="trading.preview.wants">IL RECHERCHE</small>
               <span class="preview-fruit"><img src="assets/images/fruits/kitsune.webp" alt="Fruit Kitsune" width="512" height="512"><b>Kitsune</b></span>
             </div>
           </div>
           <div class="trade-preview-foot">
-            <span><i class="fa-solid fa-chart-simple" aria-hidden="true"></i> Valeurs wiki visibles</span>
-            <a href="#trading-feed">Voir les offres <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
+            <span><i class="fa-solid fa-chart-simple" aria-hidden="true"></i> <span data-i18n="trading.preview.values">Valeurs wiki visibles</span></span>
+            <a href="#trading-feed"><span data-i18n="trading.feed">Voir les offres</span> <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
           </div>
         </div>
       </div>
 
-      <div class="container trade-stats" aria-label="Résumé des échanges">
-        <div><span class="stat-icon violet"><i class="fa-solid fa-bolt" aria-hidden="true"></i></span><span><strong id="open-trades-stat">0</strong><small>offres ouvertes</small></span></div>
-        <div><span class="stat-icon green"><i class="fa-solid fa-comments" aria-hidden="true"></i></span><span><strong id="counteroffers-stat">0</strong><small>réponses locales</small></span></div>
-        <div><span class="stat-icon amber"><i class="fa-solid fa-apple-whole" aria-hidden="true"></i></span><span><strong>41</strong><small>fruits disponibles</small></span></div>
-        <div><span class="stat-icon blue"><i class="fa-solid fa-location-dot" aria-hidden="true"></i></span><span><strong>Maroc</strong><small>communauté locale</small></span></div>
+      <div class="container trade-stats" aria-label="Résumé des échanges" data-i18n-aria="trading.statsAria">
+        <div><span class="stat-icon violet"><i class="fa-solid fa-bolt" aria-hidden="true"></i></span><span><strong id="open-trades-stat">0</strong><small data-i18n="trading.stats.open">offres ouvertes</small></span></div>
+        <div><span class="stat-icon green"><i class="fa-solid fa-comments" aria-hidden="true"></i></span><span><strong id="counteroffers-stat">0</strong><small data-i18n="trading.stats.responses">réponses locales</small></span></div>
+        <div><span class="stat-icon amber"><i class="fa-solid fa-apple-whole" aria-hidden="true"></i></span><span><strong>41</strong><small data-i18n="trading.stats.fruits">fruits disponibles</small></span></div>
+        <div><span class="stat-icon blue"><i class="fa-solid fa-location-dot" aria-hidden="true"></i></span><span><strong data-i18n="trading.stats.morocco">Maroc</strong><small data-i18n="trading.stats.community">communauté locale</small></span></div>
       </div>
     </section>
 
@@ -131,72 +133,72 @@
       <div class="container">
         <div class="section-heading trading-heading">
           <div>
-            <span class="section-kicker">LE MARCHÉ DES JOUEURS</span>
-            <h2 id="trading-title">Offres de la communauté</h2>
-            <p>Compare ce que chaque joueur propose et recherche. Les valeurs affichées sont des repères du wiki Fandom, pas une garantie d'équité.</p>
+            <span class="section-kicker" data-i18n="trading.marketKicker">LE MARCHÉ DES JOUEURS</span>
+            <h2 id="trading-title" data-i18n="trading.marketTitle">Offres de la communauté</h2>
+            <p data-i18n="trading.marketCopy">Compare ce que chaque joueur propose et recherche. Les valeurs affichées sont des repères du wiki Fandom, pas une garantie d'équité.</p>
           </div>
-          <button class="btn btn-primary" type="button" data-open-create aria-haspopup="dialog" aria-controls="create-trade-modal" aria-expanded="false"><i class="fa-solid fa-plus" aria-hidden="true"></i> Nouvelle offre</button>
+          <button class="btn btn-primary" type="button" data-open-create aria-haspopup="dialog" aria-controls="create-trade-modal" aria-expanded="false"><i class="fa-solid fa-plus" aria-hidden="true"></i> <span data-i18n="trading.newOffer">Nouvelle offre</span></button>
         </div>
 
         <div class="local-demo-banner" role="note">
           <span class="local-demo-icon"><i class="fa-solid fa-laptop" aria-hidden="true"></i></span>
-          <div><strong>Mode démonstration locale</strong><p>Les offres créées ici restent uniquement dans ce navigateur. Elles ne sont pas envoyées à d'autres joueurs.</p></div>
-          <button class="demo-reset-button" id="reset-trading-demo" type="button"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Réinitialiser</button>
+          <div><strong data-i18n="trading.localMode">Mode démonstration locale</strong><p data-i18n="trading.localModeCopy">Les offres créées ici restent uniquement dans ce navigateur. Elles ne sont pas envoyées à d'autres joueurs.</p></div>
+          <button class="demo-reset-button" id="reset-trading-demo" type="button"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> <span data-i18n="trading.reset">Réinitialiser</span></button>
         </div>
 
-        <div class="trade-tabs" aria-label="Afficher les offres">
-          <button class="trade-tab active" type="button" aria-pressed="true" data-view="all" aria-label="Toutes les offres">
-            <span class="tab-label-full">Toutes</span><span class="tab-label-short" aria-hidden="true">Toutes</span> <span id="all-trades-count">0</span>
+        <div class="trade-tabs" aria-label="Afficher les offres" data-i18n-aria="trading.tabsAria">
+          <button class="trade-tab active" type="button" aria-pressed="true" data-view="all" aria-label="Toutes les offres" data-i18n-aria="trading.tab.allAria">
+            <span class="tab-label-full" data-i18n="trading.tab.all">Toutes</span><span class="tab-label-short" aria-hidden="true" data-i18n="trading.tab.allShort">Toutes</span> <span id="all-trades-count">0</span>
           </button>
-          <button class="trade-tab" type="button" aria-pressed="false" data-view="mine" aria-label="Mes offres">
-            <span class="tab-label-full">Mes offres</span><span class="tab-label-short" aria-hidden="true">À moi</span> <span id="my-trades-count">0</span>
+          <button class="trade-tab" type="button" aria-pressed="false" data-view="mine" aria-label="Mes offres" data-i18n-aria="trading.tab.mineAria">
+            <span class="tab-label-full" data-i18n="trading.tab.mine">Mes offres</span><span class="tab-label-short" aria-hidden="true" data-i18n="trading.tab.mineShort">À moi</span> <span id="my-trades-count">0</span>
           </button>
-          <button class="trade-tab" type="button" aria-pressed="false" data-view="saved" aria-label="Offres sauvegardées">
-            <span class="tab-label-full">Sauvegardées</span><span class="tab-label-short" aria-hidden="true">Favoris</span> <span id="saved-trades-count">0</span>
+          <button class="trade-tab" type="button" aria-pressed="false" data-view="saved" aria-label="Offres sauvegardées" data-i18n-aria="trading.tab.savedAria">
+            <span class="tab-label-full" data-i18n="trading.tab.saved">Sauvegardées</span><span class="tab-label-short" aria-hidden="true" data-i18n="trading.tab.savedShort">Favoris</span> <span id="saved-trades-count">0</span>
           </button>
         </div>
 
-        <div class="trade-filters" aria-label="Filtres des offres">
+        <div class="trade-filters" aria-label="Filtres des offres" data-i18n-aria="trading.filtersAria">
           <label class="search-control trade-search-control">
-            <span class="sr-only">Rechercher une offre</span>
+            <span class="sr-only" data-i18n="trading.searchLabel">Rechercher une offre</span>
             <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-            <input id="trade-search" type="search" placeholder="Fruit ou pseudo Roblox…" autocomplete="off">
-            <kbd>⌘ K</kbd>
+            <input id="trade-search" type="search" placeholder="Fruit ou pseudo Roblox…" data-i18n-placeholder="trading.searchPlaceholder" autocomplete="off">
+            <kbd aria-hidden="true">Ctrl/⌘ K</kbd>
           </label>
           <label class="select-control">
-            <span class="sr-only">Zone de recherche</span>
+            <span class="sr-only" data-i18n="trading.sideFilterLabel">Zone de recherche</span>
             <select id="trade-side-filter">
-              <option value="both">Tout le contenu</option>
-              <option value="offered">Fruits proposés</option>
-              <option value="wanted">Fruits recherchés</option>
+              <option value="both" data-i18n="trading.side.all">Tout le contenu</option>
+              <option value="offered" data-i18n="trading.side.offered">Fruits proposés</option>
+              <option value="wanted" data-i18n="trading.side.wanted">Fruits recherchés</option>
             </select>
             <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
           </label>
           <label class="select-control">
-            <span class="sr-only">Filtrer par format</span>
+            <span class="sr-only" data-i18n="trading.modeFilterLabel">Filtrer par format</span>
             <select id="trade-mode-filter">
-              <option value="all">Tous les formats</option>
-              <option value="physical">Fruits physiques</option>
-              <option value="permanent">Fruits permanents</option>
+              <option value="all" data-i18n="trading.format.all">Tous les formats</option>
+              <option value="physical" data-i18n="trading.format.physical">Fruits physiques</option>
+              <option value="permanent" data-i18n="trading.format.permanent">Fruits permanents</option>
             </select>
             <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
           </label>
           <label class="select-control">
-            <span class="sr-only">Filtrer par statut</span>
+            <span class="sr-only" data-i18n="trading.statusFilterLabel">Filtrer par statut</span>
             <select id="trade-status-filter">
-              <option value="open">Offres ouvertes</option>
-              <option value="all">Tous les statuts</option>
-              <option value="completed">Terminées</option>
+              <option value="open" data-i18n="trading.status.openOffers">Offres ouvertes</option>
+              <option value="all" data-i18n="trading.status.all">Tous les statuts</option>
+              <option value="completed" data-i18n="trading.status.completedOffers">Terminées</option>
             </select>
             <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
           </label>
           <label class="select-control sort-control">
-            <span class="sr-only">Trier les offres</span>
+            <span class="sr-only" data-i18n="trading.sortLabel">Trier les offres</span>
             <select id="trade-sort">
-              <option value="newest">Plus récentes</option>
-              <option value="oldest">Plus anciennes</option>
-              <option value="response-desc">Plus discutées</option>
-              <option value="value-desc">Plus grande valeur</option>
+              <option value="newest" data-i18n="trading.sort.newest">Plus récentes</option>
+              <option value="oldest" data-i18n="trading.sort.oldest">Plus anciennes</option>
+              <option value="response-desc" data-i18n="trading.sort.responses">Plus discutées</option>
+              <option value="value-desc" data-i18n="trading.sort.value">Plus grande valeur</option>
             </select>
             <i class="fa-solid fa-arrow-down-wide-short" aria-hidden="true"></i>
           </label>
@@ -204,16 +206,21 @@
 
         <div class="trade-list-meta">
           <p id="trade-results-count" aria-live="polite">0 offre</p>
-          <button class="text-button" id="clear-trade-filters" type="button" hidden><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Réinitialiser les filtres</button>
+          <button class="text-button" id="clear-trade-filters" type="button" hidden><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> <span data-i18n="trading.clearFilters">Réinitialiser les filtres</span></button>
+        </div>
+
+        <div class="trade-undo" id="trade-block-undo" role="status" aria-live="polite" hidden>
+          <span><i class="fa-solid fa-user-slash" aria-hidden="true"></i> <span id="trade-block-undo-message" data-i18n="trading.moderation.blocked">Ce profil est maintenant masqué sur cet appareil.</span></span>
+          <button type="button" data-undo-block data-i18n="trading.moderation.undo">Annuler</button>
         </div>
 
         <div class="trade-grid" id="trade-grid"></div>
 
         <div class="trade-empty" id="trade-empty" hidden>
           <span><i class="fa-solid fa-right-left" aria-hidden="true"></i></span>
-          <h3>Aucune offre dans cette vue</h3>
-          <p id="trade-empty-copy">Essaie d'autres filtres ou publie la première offre.</p>
-          <button class="btn btn-secondary" id="trade-empty-action" type="button">Voir toutes les offres</button>
+          <h3 data-i18n="trading.emptyTitle">Aucune offre dans cette vue</h3>
+          <p id="trade-empty-copy" data-i18n="trading.emptyDefault">Essaie d'autres filtres ou publie la première offre.</p>
+          <button class="btn btn-secondary" id="trade-empty-action" type="button" data-i18n="trading.viewAll">Voir toutes les offres</button>
         </div>
       </div>
     </section>
@@ -221,18 +228,18 @@
     <section class="trade-how" aria-labelledby="trade-how-title">
       <div class="container">
         <div class="section-heading centered">
-          <span class="section-kicker">COMMENT ÇA MARCHE ?</span>
-          <h2 id="trade-how-title">Un échange clair en trois étapes</h2>
-          <p>Itemsouq facilite la découverte. Les joueurs vérifient et réalisent eux-mêmes l'échange dans Blox Fruits.</p>
+          <span class="section-kicker" data-i18n="trading.howKicker">COMMENT ÇA MARCHE ?</span>
+          <h2 id="trade-how-title" data-i18n="trading.howTitle">Un échange clair en trois étapes</h2>
+          <p data-i18n="trading.howCopy">Itemsouq facilite la découverte. Les joueurs vérifient et réalisent eux-mêmes l'échange dans Blox Fruits.</p>
         </div>
         <div class="trade-how-grid">
-          <article><span>01</span><i class="fa-solid fa-list-check" aria-hidden="true"></i><h3>Publie ton offre</h3><p>Choisis jusqu'à quatre fruits à proposer et quatre fruits à rechercher.</p></article>
-          <article><span>02</span><i class="fa-solid fa-comments" aria-hidden="true"></i><h3>Simule une réponse</h3><p>Dans la démo, ouvre une annonce et enregistre une contre-offre locale.</p></article>
-          <article><span>03</span><i class="fa-solid fa-gamepad" aria-hidden="true"></i><h3>Vérifie dans le jeu</h3><p>Confirme le pseudo, les objets et les quantités avant d'accepter l'échange.</p></article>
+          <article><span>01</span><i class="fa-solid fa-list-check" aria-hidden="true"></i><h3 data-i18n="trading.step1Title">Publie ton offre</h3><p data-i18n="trading.step1Copy">Choisis jusqu'à quatre fruits à proposer et quatre fruits à rechercher.</p></article>
+          <article><span>02</span><i class="fa-solid fa-comments" aria-hidden="true"></i><h3 data-i18n="trading.step2Title">Simule une réponse</h3><p data-i18n="trading.step2Copy">Dans la démo, ouvre une annonce et enregistre une contre-offre locale.</p></article>
+          <article><span>03</span><i class="fa-solid fa-gamepad" aria-hidden="true"></i><h3 data-i18n="trading.step3Title">Vérifie dans le jeu</h3><p data-i18n="trading.step3Copy">Confirme le pseudo, les objets et les quantités avant d'accepter l'échange.</p></article>
         </div>
         <div class="trade-safety-note">
           <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
-          <p><strong>Rappel de sécurité :</strong> ne communique jamais ton mot de passe Roblox, ton PIN, un code OTP ou des informations bancaires. Itemsouq ne garantit aucune offre communautaire dans cette démonstration.</p>
+          <p><strong data-i18n="trading.safetyLabel">Rappel de sécurité :</strong> <span data-i18n="trading.safetyCopy">ne communique jamais ton mot de passe Roblox, ton PIN, un code OTP ou des informations bancaires. Itemsouq ne garantit aucune offre communautaire dans cette démonstration.</span></p>
         </div>
       </div>
     </section>
@@ -241,39 +248,40 @@
   <footer class="site-footer">
     <div class="container footer-grid">
       <div>
-        <a class="brand footer-brand" href="index.html" aria-label="Itemsouq Fruits, accueil">
+        <a class="brand footer-brand" href="index.html" aria-label="Itemsouq Fruits, accueil" data-i18n-aria="trading.brandHomeAria">
           <span class="brand-mark" aria-hidden="true"><img src="assets/brand/itemsouq-mark.svg" alt="" width="64" height="64" loading="lazy"></span>
           <span class="brand-copy"><strong>ITEMSOUQ</strong><small>FRUITS MARKET</small></span>
         </a>
-        <p>Une démonstration de marketplace marocaine pour acheter et échanger des fruits Blox Fruits.</p>
+        <p data-i18n="trading.footerCopy">Une démonstration de marketplace marocaine pour acheter et échanger des fruits Blox Fruits.</p>
       </div>
       <div>
-        <h3>Explorer</h3>
-        <a href="index.html#catalogue">La boutique</a>
-        <a href="trading.html">Offres Trading</a>
-        <button class="footer-button" type="button" data-open-create aria-haspopup="dialog" aria-controls="create-trade-modal" aria-expanded="false">Publier une offre</button>
+        <h3 data-i18n="trading.footer.explore">Explorer</h3>
+        <a href="index.html#catalogue" data-i18n="trading.footer.shop">La boutique</a>
+        <a href="trading.html" data-i18n="trading.footer.offers">Offres Trading</a>
+        <a href="calculator.html" data-i18n="footer.tradeCalculator">Calculateur d’échange</a>
+        <button class="footer-button" type="button" data-open-create aria-haspopup="dialog" aria-controls="create-trade-modal" aria-expanded="false" data-i18n="trading.create">Publier une offre</button>
       </div>
       <div>
-        <h3>Aide</h3>
-        <a href="index.html#comment-acheter">Comment acheter</a>
-        <a href="index.html#faq">Questions fréquentes</a>
-        <a href="https://blox-fruits.fandom.com/wiki/Blox_Fruits" target="_blank" rel="noopener">Source des valeurs</a>
+        <h3 data-i18n="trading.footer.help">Aide</h3>
+        <a href="index.html#comment-acheter" data-i18n="nav.how">Comment acheter</a>
+        <a href="index.html#faq" data-i18n="trading.footer.faq">Questions fréquentes</a>
+        <a href="https://blox-fruits.fandom.com/wiki/Blox_Fruits" target="_blank" rel="noopener" data-i18n="trading.footer.source">Source des valeurs</a>
       </div>
       <div>
-        <h3>Important</h3>
-        <p class="footer-small">Démo locale uniquement. Les publications et réponses ne sont visibles que sur cet appareil.</p>
+        <h3 data-i18n="trading.footer.important">Important</h3>
+        <p class="footer-small" data-i18n="trading.footer.localOnly">Démo locale uniquement. Les publications et réponses ne sont visibles que sur cet appareil.</p>
       </div>
     </div>
     <div class="container footer-bottom">
-      <span>© 2026 Itemsouq · Concept de démonstration</span>
-      <span>Non affilié à Roblox ou Blox Fruits</span>
+      <span data-i18n="trading.footer.copyright">© 2026 Itemsouq · Concept de démonstration</span>
+      <span data-i18n="trading.footer.disclaimer">Non affilié à Roblox ou Blox Fruits</span>
     </div>
   </footer>
 
-  <nav class="mobile-bottom-nav" aria-label="Navigation rapide">
-    <a href="index.html"><i class="fa-solid fa-house" aria-hidden="true"></i><span data-i18n="mobile.home">Accueil</span></a>
+  <nav class="mobile-bottom-nav" aria-label="Navigation rapide" data-i18n-aria="trading.quickNavAria">
     <a href="index.html#catalogue"><i class="fa-solid fa-store" aria-hidden="true"></i><span data-i18n="mobile.shop">Boutique</span></a>
     <a href="trading.html" class="active" aria-current="page"><i class="fa-solid fa-right-left" aria-hidden="true"></i><span data-i18n="mobile.trade">Trading</span></a>
+    <a href="calculator.html"><i class="fa-solid fa-scale-balanced" aria-hidden="true"></i><span data-i18n="mobile.calculator">Calcul</span></a>
     <a href="index.html#souq"><i class="fa-solid fa-user" aria-hidden="true"></i><span data-i18n="mobile.souq">Mon Souq</span></a>
     <button type="button" data-open-create aria-controls="create-trade-modal" aria-expanded="false"><i class="fa-solid fa-plus" aria-hidden="true"></i><span data-i18n="trade.new.short">Offre</span></button>
   </nav>
@@ -282,60 +290,60 @@
     <div class="modal-card trade-modal-card">
       <div class="modal-head trade-modal-head">
         <div>
-          <span class="drawer-kicker">NOUVELLE PUBLICATION</span>
-          <h2 id="create-trade-title" tabindex="-1">Publier une offre</h2>
+          <span class="drawer-kicker" data-i18n="trading.createKicker">NOUVELLE PUBLICATION</span>
+          <h2 id="create-trade-title" tabindex="-1" data-i18n="trading.create">Publier une offre</h2>
         </div>
-        <button class="modal-close" type="button" data-close-create aria-label="Fermer la création d'offre"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+        <button class="modal-close" type="button" data-close-create aria-label="Fermer la création d'offre" data-i18n-aria="trading.closeCreateAria"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
       </div>
 
       <form id="create-trade-form" novalidate>
         <div class="modal-body trade-form-body">
-          <div class="trade-form-notice"><i class="fa-solid fa-laptop" aria-hidden="true"></i><p><strong>Prototype local.</strong> Cette publication est sauvegardée uniquement dans ton navigateur.</p></div>
+          <div class="trade-form-notice"><i class="fa-solid fa-laptop" aria-hidden="true"></i><p><strong data-i18n="trading.localPrototype">Prototype local.</strong> <span data-i18n="trading.localPrototypeCopy">Cette publication est sauvegardée uniquement dans ton navigateur.</span></p></div>
 
           <section class="trade-draft-panel" id="trade-draft-panel" aria-labelledby="trade-draft-title">
             <span class="trade-draft-icon" aria-hidden="true"><i class="fa-regular fa-file-lines"></i></span>
             <div class="trade-draft-copy">
-              <strong id="trade-draft-title">Brouillon local</strong>
-              <span id="trade-draft-status" aria-live="polite">Aucun brouillon enregistré sur cet appareil.</span>
+              <strong id="trade-draft-title" data-i18n="trading.draft.title">Brouillon local</strong>
+              <span id="trade-draft-status" aria-live="polite" data-i18n="trading.draft.none">Aucun brouillon enregistré sur cet appareil.</span>
             </div>
             <div class="trade-draft-actions">
-              <button class="trade-draft-action restore" type="button" data-restore-draft disabled><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> Restaurer</button>
-              <button class="trade-draft-action clear" type="button" data-clear-draft hidden aria-label="Supprimer le brouillon enregistré"><i class="fa-regular fa-trash-can" aria-hidden="true"></i></button>
+              <button class="trade-draft-action restore" type="button" data-restore-draft disabled><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> <span data-i18n="trading.draft.restore">Restaurer</span></button>
+              <button class="trade-draft-action clear" type="button" data-clear-draft hidden aria-label="Supprimer le brouillon enregistré" data-i18n-aria="trading.draft.deleteAria"><i class="fa-regular fa-trash-can" aria-hidden="true"></i></button>
             </div>
           </section>
 
           <div class="form-grid trade-identity-grid">
             <div class="field-group">
-              <label for="trade-username">Pseudo Roblox</label>
+              <label for="trade-username" data-i18n="trading.usernameLabel">Pseudo Roblox</label>
               <input id="trade-username" name="username" type="text" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_]+" placeholder="Ex. Youssef_RBX" autocomplete="off" aria-describedby="trade-username-error">
               <span class="field-error" id="trade-username-error" data-trade-error="username" aria-live="polite"></span>
             </div>
             <div class="field-group">
-              <label for="trade-mode">Format de l'échange</label>
+              <label for="trade-mode" data-i18n="trading.modeLabel">Format de l'échange</label>
               <select id="trade-mode" name="mode" aria-describedby="trade-mode-help">
-                <option value="physical">Fruits physiques</option>
-                <option value="permanent">Fruits permanents</option>
+                <option value="physical" data-i18n="trading.format.physical">Fruits physiques</option>
+                <option value="permanent" data-i18n="trading.format.permanent">Fruits permanents</option>
               </select>
-              <span class="field-help" id="trade-mode-help">Le format s'applique aux fruits des deux côtés.</span>
+              <span class="field-help" id="trade-mode-help" data-i18n="trading.modeHelp">Le format s'applique aux fruits des deux côtés.</span>
             </div>
           </div>
 
           <div class="trade-picker-columns">
             <fieldset class="trade-fruit-fieldset" data-picker-fieldset="offered" aria-describedby="offered-error" tabindex="-1">
-              <legend><span class="picker-step give"><i class="fa-solid fa-arrow-up" aria-hidden="true"></i></span><span><strong>Tu proposes</strong><small>Sélectionne 1 à 4 fruits</small></span></legend>
-              <label class="picker-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Rechercher dans les fruits proposés</span><input type="search" placeholder="Rechercher…" data-picker-search="offered" autocomplete="off"></label>
-              <div class="selected-fruits" id="offered-selected" aria-live="polite"><span>Aucun fruit sélectionné</span></div>
-              <div class="fruit-picker-list" id="offered-picker" role="group" aria-label="Fruits proposés"></div>
+              <legend><span class="picker-step give"><i class="fa-solid fa-arrow-up" aria-hidden="true"></i></span><span><strong data-i18n="trading.giveYou">Tu proposes</strong><small data-i18n="trading.selectOneToFour">Sélectionne 1 à 4 fruits</small></span></legend>
+              <label class="picker-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only" data-i18n="trading.searchOfferedLabel">Rechercher dans les fruits proposés</span><input type="search" placeholder="Rechercher…" data-i18n-placeholder="trading.pickerSearchPlaceholder" data-picker-search="offered" autocomplete="off"></label>
+              <div class="selected-fruits" id="offered-selected" aria-live="polite"><span data-i18n="trading.noneSelected">Aucun fruit sélectionné</span></div>
+              <div class="fruit-picker-list" id="offered-picker" role="group" aria-label="Fruits proposés" data-i18n-aria="trading.offeredGroupAria"></div>
               <span class="field-error" id="offered-error" data-trade-error="offered" aria-live="polite"></span>
             </fieldset>
 
             <div class="picker-swap" aria-hidden="true"><i class="fa-solid fa-arrow-right-arrow-left"></i></div>
 
             <fieldset class="trade-fruit-fieldset" data-picker-fieldset="wanted" aria-describedby="wanted-error" tabindex="-1">
-              <legend><span class="picker-step want"><i class="fa-solid fa-arrow-down" aria-hidden="true"></i></span><span><strong>Tu recherches</strong><small>Sélectionne 1 à 4 fruits</small></span></legend>
-              <label class="picker-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Rechercher dans les fruits demandés</span><input type="search" placeholder="Rechercher…" data-picker-search="wanted" autocomplete="off"></label>
-              <div class="selected-fruits" id="wanted-selected" aria-live="polite"><span>Aucun fruit sélectionné</span></div>
-              <div class="fruit-picker-list" id="wanted-picker" role="group" aria-label="Fruits recherchés"></div>
+              <legend><span class="picker-step want"><i class="fa-solid fa-arrow-down" aria-hidden="true"></i></span><span><strong data-i18n="trading.wantYou">Tu recherches</strong><small data-i18n="trading.selectOneToFour">Sélectionne 1 à 4 fruits</small></span></legend>
+              <label class="picker-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only" data-i18n="trading.searchWantedLabel">Rechercher dans les fruits demandés</span><input type="search" placeholder="Rechercher…" data-i18n-placeholder="trading.pickerSearchPlaceholder" data-picker-search="wanted" autocomplete="off"></label>
+              <div class="selected-fruits" id="wanted-selected" aria-live="polite"><span data-i18n="trading.noneSelected">Aucun fruit sélectionné</span></div>
+              <div class="fruit-picker-list" id="wanted-picker" role="group" aria-label="Fruits recherchés" data-i18n-aria="trading.wantedGroupAria"></div>
               <span class="field-error" id="wanted-error" data-trade-error="wanted" aria-live="polite"></span>
             </fieldset>
           </div>
@@ -343,15 +351,15 @@
           <div class="trade-value-preview" id="create-value-preview" aria-live="polite"></div>
 
           <div class="field-group trade-note-field">
-            <label for="trade-note">Message <span>facultatif</span></label>
-            <textarea id="trade-note" name="note" maxlength="180" rows="3" placeholder="Ex. Je peux me connecter ce soir après 20h."></textarea>
+            <label for="trade-note"><span data-i18n="trading.messageLabel">Message</span> <span data-i18n="trading.optional">facultatif</span></label>
+            <textarea id="trade-note" name="note" maxlength="180" rows="3" placeholder="Ex. Je peux me connecter ce soir après 20h." data-i18n-placeholder="trading.notePlaceholder"></textarea>
             <span class="character-count"><span id="trade-note-count">0</span>/180</span>
           </div>
         </div>
         <div class="modal-foot trade-modal-foot">
-          <button class="btn btn-secondary trade-draft-save" type="button" data-save-draft><i class="fa-regular fa-floppy-disk" aria-hidden="true"></i> Sauvegarder le brouillon</button>
-          <button class="btn btn-secondary" type="button" data-close-create>Fermer</button>
-          <button class="btn btn-primary" type="submit"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Publier l'offre</button>
+          <button class="btn btn-secondary trade-draft-save" type="button" data-save-draft><i class="fa-regular fa-floppy-disk" aria-hidden="true"></i> <span data-i18n="trading.saveDraft">Sauvegarder le brouillon</span></button>
+          <button class="btn btn-secondary" type="button" data-close-create data-i18n="trading.close">Fermer</button>
+          <button class="btn btn-primary" type="submit"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> <span data-i18n="trading.publish">Publier l'offre</span></button>
         </div>
       </form>
     </div>
@@ -361,10 +369,10 @@
     <div class="modal-card trade-detail-card">
       <div class="modal-head trade-modal-head">
         <div>
-          <span class="drawer-kicker">DÉTAIL DE L'OFFRE</span>
-          <h2 id="trade-detail-title" tabindex="-1">Offre communautaire</h2>
+          <span class="drawer-kicker" data-i18n="trading.detailKicker">DÉTAIL DE L'OFFRE</span>
+          <h2 id="trade-detail-title" tabindex="-1" data-i18n="trading.detailTitle">Offre communautaire</h2>
         </div>
-        <button class="modal-close" type="button" data-close-detail aria-label="Fermer le détail de l'offre"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+        <button class="modal-close" type="button" data-close-detail aria-label="Fermer le détail de l'offre" data-i18n-aria="trading.closeDetailAria"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
       </div>
       <div class="modal-body trade-detail-body" id="trade-detail-body"></div>
       <div class="modal-foot trade-detail-foot" id="trade-detail-foot"></div>
@@ -377,10 +385,11 @@
   </div>
 
   <div class="sr-only" id="trade-live-region" aria-live="polite" aria-atomic="true"></div>
+  <div class="sr-only" id="trade-alert-region" role="alert" aria-live="assertive" aria-atomic="true"></div>
 
-  <script src="assets/js/config.js"></script>
-  <script src="assets/js/fruits.js"></script>
-  <script src="assets/js/locale.js"></script>
-  <script src="assets/js/trading.js"></script>
+  <script src="assets/js/config.js?v=20260902-4"></script>
+  <script src="assets/js/fruits.js?v=20260902-4"></script>
+  <script src="assets/js/locale.js?v=20260902-4"></script>
+  <script src="assets/js/trading.js?v=20260902-4"></script>
 </body>
 </html>

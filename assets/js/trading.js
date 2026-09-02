@@ -5,13 +5,27 @@
   const fruits = Array.isArray(window.ITEMSOUQ_FRUITS) ? window.ITEMSOUQ_FRUITS : [];
   const i18n = window.ITEMSOUQ_I18N;
   const l = (key, fallback, variables) => i18n?.t(key, fallback, variables) ?? fallback;
+  const language = () => i18n?.getLanguage?.() || 'fr';
   const STORAGE = {
     trades: 'itemsouq:trading:v3:listings',
     saved: 'itemsouq:trading:v3:saved',
-    draft: 'itemsouq:trading:v3:draft'
+    draft: 'itemsouq:trading:v3:draft',
+    tracker: 'itemsouq:trading:v1:tracker',
+    reported: 'itemsouq:trading:v1:reported',
+    blocked: 'itemsouq:trading:v1:blocked'
   };
   const MAX_FRUITS = 4;
   const USERNAME_PATTERN = /^[A-Za-z0-9_]{3,20}$/;
+  const INTERACTION_STATES = new Set([
+    'awaiting_response',
+    'offer_sent',
+    'counter_received',
+    'accepted',
+    'declined',
+    'completed'
+  ]);
+  const RESPONSE_OUTCOMES = new Set(['pending', 'accepted', 'declined']);
+  const TRACKER_STAGES = ['prepared', 'player_contacted', 'exchange_pending', 'completed'];
 
   const rarityLabels = {
     Common: 'Commun',
@@ -42,7 +56,11 @@
       wanted: new Set()
     },
     counter: new Set(),
-    activeTradeId: null
+    activeTradeId: null,
+    tracker: new Map(),
+    reported: new Set(),
+    blocked: new Set(),
+    lastBlockedTradeId: null
   };
 
   let activeModal = null;
@@ -50,6 +68,21 @@
   let toastTimer = null;
   let isSubmitting = false;
   let createDraft = null;
+
+  const trustSeed = (username) => [...String(username)].reduce((total, character) => total + character.charCodeAt(0), 0);
+
+  function defaultTrust(username, owned = false) {
+    const seed = trustSeed(username);
+    const joinedYear = owned ? new Date().getFullYear() : 2021 + (seed % 4);
+    const joinedMonth = String((seed % 12) + 1).padStart(2, '0');
+    const joinedDay = String((seed % 27) + 1).padStart(2, '0');
+    return {
+      reputationPercent: owned ? 100 : 94 + (seed % 6),
+      completedTrades: owned ? 0 : 12 + (seed % 113),
+      responseMinutes: owned ? 30 : 8 + (seed % 43),
+      memberSince: owned ? new Date().toISOString().slice(0, 10) : `${joinedYear}-${joinedMonth}-${joinedDay}`
+    };
+  }
 
   function escapeHtml(value) {
     return String(value)
@@ -75,7 +108,7 @@
       localStorage.setItem(key, JSON.stringify(value));
       return true;
     } catch (error) {
-      showToast('Le stockage local est indisponible. Tes changements restent temporaires.', 'warning');
+      showToast(l('trading.feedback.storageUnavailable', 'Le stockage local est indisponible. Tes changements restent temporaires.'), 'warning');
       return false;
     }
   }
@@ -98,12 +131,14 @@
         mode: 'physical',
         status: 'open',
         owned: false,
+        trust: { reputationPercent: 98, completedTrades: 73, responseMinutes: 12, memberSince: '2022-06-18' },
+        localInteraction: { responseId: 'counter-demo-1', state: 'counter_received', updatedAt: minutesAgo(3) },
         offered: [{ fruitId: 'dragon', quantity: 1 }],
         wanted: [{ fruitId: 'kitsune', quantity: 1 }, { fruitId: 'dough', quantity: 1 }],
         note: 'Disponible ce soir. Je vérifie tous les fruits dans la fenêtre d’échange.',
         createdAt: minutesAgo(18),
         responses: [
-          { id: 'counter-demo-1', username: 'CasaFruit', offered: [{ fruitId: 'kitsune', quantity: 1 }], note: 'Kitsune disponible maintenant.', createdAt: minutesAgo(8) }
+          { id: 'counter-demo-1', username: 'CasaFruit', offered: [{ fruitId: 'kitsune', quantity: 1 }], note: 'Kitsune disponible maintenant.', createdAt: minutesAgo(8), local: true, outcome: 'pending' }
         ]
       },
       {
@@ -112,6 +147,8 @@
         mode: 'physical',
         status: 'open',
         owned: false,
+        trust: { reputationPercent: 96, completedTrades: 41, responseMinutes: 28, memberSince: '2023-01-04' },
+        localInteraction: null,
         offered: [{ fruitId: 'dough', quantity: 1 }, { fruitId: 'spirit', quantity: 1 }],
         wanted: [{ fruitId: 'kitsune', quantity: 1 }],
         note: 'Je cherche surtout Kitsune. Une contre-offre proche peut aussi m’intéresser.',
@@ -127,6 +164,8 @@
         mode: 'physical',
         status: 'open',
         owned: false,
+        trust: { reputationPercent: 99, completedTrades: 124, responseMinutes: 9, memberSince: '2021-11-20' },
+        localInteraction: null,
         offered: [{ fruitId: 'buddha', quantity: 1 }, { fruitId: 'portal', quantity: 1 }],
         wanted: [{ fruitId: 'dough', quantity: 1 }],
         note: 'Échange simple entre joueurs, sans paiement.',
@@ -139,6 +178,8 @@
         mode: 'permanent',
         status: 'open',
         owned: false,
+        trust: { reputationPercent: 94, completedTrades: 19, responseMinutes: 45, memberSince: '2024-02-12' },
+        localInteraction: null,
         offered: [{ fruitId: 'buddha', quantity: 1 }],
         wanted: [{ fruitId: 'dough', quantity: 1 }],
         note: 'Offre permanente de démonstration. Tout doit être confirmé dans le jeu.',
@@ -151,6 +192,8 @@
         mode: 'physical',
         status: 'completed',
         owned: false,
+        trust: { reputationPercent: 97, completedTrades: 88, responseMinutes: 16, memberSince: '2022-09-03' },
+        localInteraction: { responseId: null, state: 'completed', updatedAt: minutesAgo(1310) },
         offered: [{ fruitId: 'tiger', quantity: 1 }],
         wanted: [{ fruitId: 'yeti', quantity: 1 }],
         note: 'Exemple d’une offre déjà clôturée.',
@@ -160,6 +203,29 @@
         ]
       }
     ];
+  }
+
+  const DEMO_NOTE_KEYS = {
+    'demo-dragon-kitsune': 'trading.demo.dragonKitsune.note',
+    'demo-dough-spirit': 'trading.demo.doughSpirit.note',
+    'demo-buddha-portal': 'trading.demo.buddhaPortal.note',
+    'demo-permanent-buddha': 'trading.demo.permanentBuddha.note',
+    'demo-tiger-yeti': 'trading.demo.tigerYeti.note'
+  };
+
+  const DEMO_RESPONSE_NOTE_KEYS = {
+    'counter-demo-1': 'trading.demo.response.kitsuneNow',
+    'counter-demo-3': 'trading.demo.response.verifyInGame'
+  };
+
+  function displayTradeNote(trade) {
+    const key = DEMO_NOTE_KEYS[trade.id];
+    return key ? l(key, trade.note) : trade.note;
+  }
+
+  function displayResponseNote(response) {
+    const key = DEMO_RESPONSE_NOTE_KEYS[response.id];
+    return key ? l(key, response.note) : response.note;
   }
 
   function sanitizeLine(line, mode) {
@@ -191,6 +257,50 @@
     return USERNAME_PATTERN.test(username) ? username : '';
   }
 
+  function clampInteger(value, minimum, maximum, fallback) {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? Math.min(maximum, Math.max(minimum, parsed)) : fallback;
+  }
+
+  function sanitizeTrust(input, username, owned) {
+    const fallback = defaultTrust(username, owned);
+    const source = input && typeof input === 'object' ? input : {};
+    const memberDate = new Date(source.memberSince);
+    const memberSince = Number.isNaN(memberDate.getTime()) || memberDate.getTime() > Date.now()
+      ? fallback.memberSince
+      : memberDate.toISOString().slice(0, 10);
+    return {
+      reputationPercent: clampInteger(source.reputationPercent, 0, 100, fallback.reputationPercent),
+      completedTrades: clampInteger(source.completedTrades, 0, 9999, fallback.completedTrades),
+      responseMinutes: clampInteger(source.responseMinutes, 1, 1440, fallback.responseMinutes),
+      memberSince
+    };
+  }
+
+  function sanitizeLocalInteraction(input, trade) {
+    const seededDemoState = trade.id === 'demo-dragon-kitsune' && trade.responses.length
+      ? 'counter_received'
+      : null;
+    const fallbackState = trade.status === 'completed'
+      ? 'completed'
+      : trade.owned
+        ? trade.responses.length ? 'counter_received' : 'awaiting_response'
+        : seededDemoState;
+    const source = input && typeof input === 'object' ? input : null;
+    const stateName = source && INTERACTION_STATES.has(source.state) ? source.state : fallbackState;
+    if (!stateName) return null;
+    const responseIds = new Set(trade.responses.map((response) => response.id));
+    const responseId = source && typeof source.responseId === 'string' && responseIds.has(source.responseId)
+      ? source.responseId
+      : seededDemoState === 'counter_received' ? trade.responses[0].id : null;
+    const updatedDate = new Date(source?.updatedAt || trade.createdAt);
+    return {
+      responseId,
+      state: trade.status === 'completed' ? 'completed' : stateName,
+      updatedAt: Number.isNaN(updatedDate.getTime()) ? trade.createdAt : updatedDate.toISOString()
+    };
+  }
+
   function sanitizeResponse(response, mode) {
     if (!response || typeof response !== 'object') return null;
     const id = typeof response.id === 'string' && /^[A-Za-z0-9_-]{1,90}$/.test(response.id) ? response.id : '';
@@ -203,7 +313,9 @@
       username,
       offered,
       note: typeof response.note === 'string' ? response.note.trim().slice(0, 160) : '',
-      createdAt: date.toISOString()
+      createdAt: date.toISOString(),
+      local: Boolean(response.local),
+      outcome: RESPONSE_OUTCOMES.has(response.outcome) ? response.outcome : 'pending'
     };
   }
 
@@ -236,7 +348,7 @@
       }
     }
 
-    return {
+    const normalized = {
       id,
       username,
       mode,
@@ -246,8 +358,11 @@
       wanted,
       note: typeof trade.note === 'string' ? trade.note.trim().slice(0, 180) : '',
       createdAt: date.toISOString(),
-      responses
+      responses,
+      trust: sanitizeTrust(trade.trust, username, Boolean(trade.owned))
     };
+    normalized.localInteraction = sanitizeLocalInteraction(trade.localInteraction, normalized);
+    return normalized;
   }
 
   function sanitizeTrades(input) {
@@ -281,21 +396,57 @@
     return { username, mode, offered, wanted, note, savedAt: savedAt.toISOString() };
   }
 
+  function sanitizeIdSet(input, validIds) {
+    return new Set(Array.isArray(input)
+      ? input.filter((id) => typeof id === 'string' && validIds.has(id)).slice(0, 100)
+      : []);
+  }
+
+  function sanitizeTracker(input, validIds) {
+    const result = new Map();
+    if (!input || typeof input !== 'object' || Array.isArray(input)) return result;
+    for (const [tradeId, record] of Object.entries(input)) {
+      if (!validIds.has(tradeId) || !record || typeof record !== 'object') continue;
+      const stage = TRACKER_STAGES.includes(record.stage) ? record.stage : '';
+      const updatedAt = new Date(record.updatedAt);
+      if (!stage || Number.isNaN(updatedAt.getTime())) continue;
+      result.set(tradeId, { stage, updatedAt: updatedAt.toISOString() });
+      if (result.size === 100) break;
+    }
+    return result;
+  }
+
   function hydrateState() {
     const storedTrades = safeJsonRead(STORAGE.trades, null);
     const cleanTrades = sanitizeTrades(storedTrades);
-    state.trades = cleanTrades.length ? cleanTrades : demoTrades();
+    const fallbackTrades = sanitizeTrades(demoTrades());
+    state.trades = Array.isArray(storedTrades)
+      ? storedTrades.length && !cleanTrades.length ? fallbackTrades : cleanTrades
+      : fallbackTrades;
 
     const storedSaved = safeJsonRead(STORAGE.saved, []);
     const validIds = new Set(state.trades.map((trade) => trade.id));
-    state.saved = new Set(Array.isArray(storedSaved)
-      ? storedSaved.filter((id) => typeof id === 'string' && validIds.has(id))
-      : []);
+    state.saved = sanitizeIdSet(storedSaved, validIds);
+    state.reported = sanitizeIdSet(safeJsonRead(STORAGE.reported, []), validIds);
+    state.blocked = sanitizeIdSet(safeJsonRead(STORAGE.blocked, []), validIds);
+    state.tracker = sanitizeTracker(safeJsonRead(STORAGE.tracker, {}), validIds);
+    state.trades.forEach((trade) => {
+      const tracker = state.tracker.get(trade.id);
+      if (trade.status === 'completed') {
+        trade.localInteraction = { responseId: trade.localInteraction?.responseId || null, state: 'completed', updatedAt: trade.localInteraction?.updatedAt || trade.createdAt };
+        state.tracker.set(trade.id, { stage: 'completed', updatedAt: tracker?.updatedAt || trade.createdAt });
+      } else if (tracker?.stage === 'completed') {
+        trade.localInteraction = { responseId: trade.localInteraction?.responseId || null, state: 'completed', updatedAt: tracker.updatedAt };
+        if (trade.owned) trade.status = 'completed';
+      }
+    });
 
     createDraft = sanitizeDraft(safeJsonRead(STORAGE.draft, null));
 
     persistTrades();
     persistSaved();
+    persistModeration();
+    persistTracker();
   }
 
   function persistTrades() {
@@ -304,6 +455,15 @@
 
   function persistSaved() {
     safeJsonWrite(STORAGE.saved, [...state.saved]);
+  }
+
+  function persistModeration() {
+    safeJsonWrite(STORAGE.reported, [...state.reported]);
+    safeJsonWrite(STORAGE.blocked, [...state.blocked]);
+  }
+
+  function persistTracker() {
+    safeJsonWrite(STORAGE.tracker, Object.fromEntries(state.tracker));
   }
 
   function fruitImagePath(fruit) {
@@ -328,7 +488,8 @@
   }
 
   function formatNumber(value) {
-    return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(value);
+    const locale = language() === 'ary' ? 'fr-MA' : 'fr-FR';
+    return new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(value);
   }
 
   function formatValue(value, mode) {
@@ -353,11 +514,108 @@
   }
 
   function fullDate(isoDate) {
-    return new Intl.DateTimeFormat('fr-MA', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(isoDate));
+    return new Intl.DateTimeFormat('fr-MA', {
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+    }).format(new Date(isoDate));
   }
 
-  function pluralize(count, singular, plural) {
-    return `${count} ${count === 1 ? singular : plural}`;
+  function accountAge(memberSince) {
+    const joined = new Date(memberSince);
+    const months = Math.max(0, Math.floor((Date.now() - joined.getTime()) / (30.4375 * 24 * 60 * 60 * 1000)));
+    if (months < 1) return l('trading.trust.ageNew', 'Nouveau');
+    if (months < 12) return l('trading.trust.ageMonths', `${months} mois`, { count: months });
+    const years = Math.floor(months / 12);
+    return l('trading.trust.ageYears', `${years} an${years > 1 ? 's' : ''}`, { count: years });
+  }
+
+  function interactionState(trade) {
+    if (trade.status === 'completed') return 'completed';
+    if (trade.localInteraction && INTERACTION_STATES.has(trade.localInteraction.state)) return trade.localInteraction.state;
+    if (trade.owned) return trade.responses.length ? 'counter_received' : 'awaiting_response';
+    return null;
+  }
+
+  function interactionMeta(stateName) {
+    const states = {
+      awaiting_response: { key: 'trading.interaction.awaitingResponse', fallback: 'En attente de réponse', icon: 'fa-clock' },
+      offer_sent: { key: 'trading.interaction.offerSent', fallback: 'Offre envoyée', icon: 'fa-paper-plane' },
+      counter_received: { key: 'trading.interaction.counterReceived', fallback: 'Contre-offre reçue', icon: 'fa-comments' },
+      accepted: { key: 'trading.interaction.accepted', fallback: 'Acceptée', icon: 'fa-circle-check' },
+      declined: { key: 'trading.interaction.declined', fallback: 'Refusée', icon: 'fa-circle-xmark' },
+      completed: { key: 'trading.interaction.completed', fallback: 'Échange terminé', icon: 'fa-flag-checkered' }
+    };
+    return states[stateName] || null;
+  }
+
+  function interactionMarkup(trade, detail = false) {
+    const stateName = interactionState(trade);
+    const meta = interactionMeta(stateName);
+    if (!meta) return '';
+    return `<p class="trade-interaction-state state-${stateName}${detail ? ' is-detail' : ''}" data-interaction-state tabindex="-1"><i class="fa-solid ${meta.icon}" aria-hidden="true"></i><span>${escapeHtml(l(meta.key, meta.fallback))}</span></p>`;
+  }
+
+  function trustMarkup(trade, detail = false) {
+    const trust = trade.trust || defaultTrust(trade.username, trade.owned);
+    const reported = state.reported.has(trade.id);
+    const profileLabel = l('trading.trust.profileAria', `Profil de confiance de ${trade.username}`, { username: trade.username });
+    const moderation = trade.owned ? '' : `
+      <div class="trade-trust-actions">
+        <button type="button" class="trade-trust-action report${reported ? ' active' : ''}" data-report-trade="${escapeHtml(trade.id)}" aria-pressed="${reported}" aria-label="${escapeHtml(reported
+          ? l('trading.moderation.reportedAria', `Retirer le signalement local de ${trade.username}`, { username: trade.username })
+          : l('trading.moderation.reportAria', `Signaler le profil de ${trade.username}`, { username: trade.username }))}"><i class="fa-${reported ? 'solid' : 'regular'} fa-flag" aria-hidden="true"></i><span>${escapeHtml(reported
+            ? l('trading.moderation.reported', 'Signalé')
+            : l('trading.moderation.report', 'Signaler'))}</span></button>
+        <button type="button" class="trade-trust-action block" data-block-trade="${escapeHtml(trade.id)}" aria-label="${escapeHtml(l('trading.moderation.blockAria', `Masquer le profil de ${trade.username} sur cet appareil`, { username: trade.username }))}"><i class="fa-solid fa-user-slash" aria-hidden="true"></i><span>${escapeHtml(l('trading.moderation.block', 'Masquer'))}</span></button>
+      </div>`;
+    return `
+      <section class="trade-trust${detail ? ' is-detail' : ''}" aria-label="${escapeHtml(profileLabel)}">
+        <div class="trade-trust-metrics">
+          <span class="trade-trust-metric"><i class="fa-solid fa-star" aria-hidden="true"></i><span><strong>${trust.reputationPercent}%</strong><small>${escapeHtml(l('trading.trust.reputation', 'Réputation'))}</small></span></span>
+          <span class="trade-trust-metric"><i class="fa-solid fa-handshake" aria-hidden="true"></i><span><strong>${formatNumber(trust.completedTrades)}</strong><small>${escapeHtml(l('trading.trust.completedTrades', 'Échanges réussis'))}</small></span></span>
+          <span class="trade-trust-metric"><i class="fa-solid fa-bolt" aria-hidden="true"></i><span><strong>${escapeHtml(l('trading.trust.responseValue', `≈ ${trust.responseMinutes} min`, { count: trust.responseMinutes }))}</strong><small>${escapeHtml(l('trading.trust.responseTime', 'Temps de réponse'))}</small></span></span>
+          <span class="trade-trust-metric"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i><span><strong>${escapeHtml(accountAge(trust.memberSince))}</strong><small>${escapeHtml(l('trading.trust.accountAge', 'Ancienneté'))}</small></span></span>
+        </div>
+        ${moderation}
+      </section>`;
+  }
+
+  function primaryTradeAction(trade) {
+    const stateName = interactionState(trade);
+    if (trade.owned) return { intent: 'manage', key: 'trading.manage', fallback: 'Gérer' };
+    if (trade.status !== 'open' || ['accepted', 'completed'].includes(stateName)) {
+      return { intent: 'view', key: 'trading.view', fallback: 'Voir' };
+    }
+    if (stateName === 'counter_received') {
+      return { intent: 'counter', key: 'trading.cta.counteroffer', fallback: 'Faire une contre-offre' };
+    }
+    if (stateName === 'offer_sent') {
+      return { intent: 'track', key: 'trading.cta.viewResponse', fallback: 'Voir la réponse' };
+    }
+    return { intent: 'offer', key: 'trading.cta.makeOffer', fallback: 'Faire une offre' };
+  }
+
+  function calculatorUrlForTrade(trade) {
+    const encodeLines = (lines) => lines
+      .map((line) => `${line.fruitId}:${line.quantity}`)
+      .join(',');
+    const yours = trade.owned ? trade.offered : trade.wanted;
+    const theirs = trade.owned ? trade.wanted : trade.offered;
+    return `calculator.html?mode=${trade.mode}&yours=${encodeLines(yours)}&theirs=${encodeLines(theirs)}`;
+  }
+
+  function calculatorAriaLabel(trade) {
+    return l(
+      'trading.calculateTradeAria',
+      `Calculer l'offre de ${trade.username}`,
+      { username: trade.username }
+    );
+  }
+
+  function announceError(message) {
+    const region = byId('trade-alert-region');
+    if (!region) return;
+    region.textContent = '';
+    window.requestAnimationFrame(() => { region.textContent = message; });
   }
 
   function showToast(message, type = 'success') {
@@ -374,6 +632,7 @@
     toast.classList.toggle('warning', type === 'warning');
     toast.classList.toggle('info', type === 'info');
     toast.hidden = false;
+    if (type === 'warning') announceError(message);
     window.clearTimeout(toastTimer);
     toastTimer = window.setTimeout(() => { toast.hidden = true; }, 3200);
   }
@@ -388,7 +647,9 @@
     return lines.map((line) => {
       const fruit = fruitById.get(line.fruitId);
       if (!fruit) return '';
-      const quantity = line.quantity > 1 ? `<b aria-label="Quantité ${line.quantity}">×${line.quantity}</b>` : '';
+      const quantity = line.quantity > 1
+        ? `<b aria-label="${escapeHtml(l('trading.quantityAria', `Quantité ${line.quantity}`, { count: line.quantity }))}">×${line.quantity}</b>`
+        : '';
       return `
         <div class="trade-fruit-mini">
           <span class="trade-fruit-mini-img"><img src="${fruitImagePath(fruit)}" alt="" width="512" height="512" loading="lazy" decoding="async">${quantity}</span>
@@ -407,9 +668,63 @@
       </div>`;
   }
 
-  function filteredTrades() {
+  function trackerStageMeta(stage) {
+    const stages = {
+      prepared: { key: 'trading.tracker.prepared', fallback: 'Préparé', icon: 'fa-clipboard-check' },
+      player_contacted: { key: 'trading.tracker.playerContacted', fallback: 'Joueur contacté', icon: 'fa-user-check' },
+      exchange_pending: { key: 'trading.tracker.exchangePending', fallback: 'Échange en attente', icon: 'fa-hourglass-half' },
+      completed: { key: 'trading.tracker.completed', fallback: 'Terminé', icon: 'fa-circle-check' }
+    };
+    return stages[stage] || stages.prepared;
+  }
+
+  function ensureTracker(tradeId, minimumStage = 'prepared') {
+    const existing = state.tracker.get(tradeId);
+    const requestedIndex = Math.max(0, TRACKER_STAGES.indexOf(minimumStage));
+    const existingIndex = existing ? TRACKER_STAGES.indexOf(existing.stage) : -1;
+    if (existing && existingIndex >= requestedIndex) return existing;
+    const record = { stage: TRACKER_STAGES[requestedIndex], updatedAt: new Date().toISOString() };
+    state.tracker.set(tradeId, record);
+    persistTracker();
+    return record;
+  }
+
+  function shouldShowTracker(trade) {
+    return trade.owned || Boolean(trade.localInteraction) || state.tracker.has(trade.id);
+  }
+
+  function trackerMarkup(trade) {
+    if (!shouldShowTracker(trade)) return '';
+    const record = state.tracker.get(trade.id) || { stage: trade.status === 'completed' ? 'completed' : 'prepared' };
+    const currentIndex = Math.max(0, TRACKER_STAGES.indexOf(record.stage));
+    const nextStage = TRACKER_STAGES[currentIndex + 1];
+    const currentMeta = trackerStageMeta(record.stage);
+    const nextMeta = nextStage ? trackerStageMeta(nextStage) : null;
+    return `
+      <section class="trade-tracker" id="trade-tracker-${escapeHtml(trade.id)}" aria-labelledby="trade-tracker-title-${escapeHtml(trade.id)}" data-trade-tracker tabindex="-1">
+        <div class="trade-tracker-head">
+          <span><strong id="trade-tracker-title-${escapeHtml(trade.id)}">${escapeHtml(l('trading.tracker.title', 'Suivi local de l’échange'))}</strong><small>${escapeHtml(l('trading.tracker.copy', 'Ces étapes restent uniquement sur cet appareil.'))}</small></span>
+          <span class="trade-tracker-current" aria-live="polite">${escapeHtml(l('trading.tracker.current', `Étape actuelle : ${l(currentMeta.key, currentMeta.fallback)}`, { stage: l(currentMeta.key, currentMeta.fallback) }))}</span>
+        </div>
+        <ol class="trade-tracker-steps">
+          ${TRACKER_STAGES.map((stage, index) => {
+            const meta = trackerStageMeta(stage);
+            const stateClass = index < currentIndex ? ' is-complete' : index === currentIndex ? ' is-current' : '';
+            return `<li class="${stateClass}"${index === currentIndex ? ' aria-current="step"' : ''}><span><i class="fa-solid ${meta.icon}" aria-hidden="true"></i></span><strong>${escapeHtml(l(meta.key, meta.fallback))}</strong></li>`;
+          }).join('')}
+        </ol>
+        <div class="trade-tracker-actions">
+          <button class="btn btn-secondary" type="button" data-advance-tracker="${escapeHtml(trade.id)}" ${nextStage ? '' : 'disabled'}><i class="fa-solid ${nextStage ? 'fa-arrow-right' : 'fa-check'}" aria-hidden="true"></i> ${escapeHtml(nextMeta
+            ? l('trading.tracker.advance', `Passer à : ${l(nextMeta.key, nextMeta.fallback)}`, { stage: l(nextMeta.key, nextMeta.fallback) })
+            : l('trading.tracker.finished', 'Suivi terminé'))}</button>
+        </div>
+      </section>`;
+  }
+
+  function filteredTrades(includeBlocked = false) {
     const query = state.search.trim().toLocaleLowerCase('fr');
     let result = state.trades.filter((trade) => {
+      if (!includeBlocked && state.blocked.has(trade.id)) return false;
       if (state.view === 'mine' && !trade.owned) return false;
       if (state.view === 'saved' && !state.saved.has(trade.id)) return false;
       if (state.mode !== 'all' && trade.mode !== state.mode) return false;
@@ -422,7 +737,7 @@
         ? offeredNames
         : state.side === 'wanted'
           ? wantedNames
-          : `${trade.username} ${offeredNames} ${wantedNames} ${trade.note}`;
+          : `${trade.username} ${offeredNames} ${wantedNames} ${displayTradeNote(trade)}`;
       return haystack.toLocaleLowerCase('fr').includes(query);
     });
 
@@ -440,43 +755,55 @@
     const mode = modeCopy(trade.mode);
     const saved = state.saved.has(trade.id);
     const responses = trade.responses.length;
+    const primaryAction = primaryTradeAction(trade);
+    const headingId = `trade-title-${trade.id}`;
     return `
-      <article class="trade-card${trade.owned ? ' is-owned' : ''}" data-trade-card="${escapeHtml(trade.id)}">
+      <article class="trade-card${trade.owned ? ' is-owned' : ''}" data-trade-card="${escapeHtml(trade.id)}" aria-labelledby="${escapeHtml(headingId)}">
         <header class="trade-card-head">
           <span class="trade-user-avatar" aria-hidden="true">${escapeHtml(initials(trade.username))}</span>
-          <span class="trade-card-user"><strong>${escapeHtml(trade.username)}</strong><small title="${escapeHtml(fullDate(trade.createdAt))}">${escapeHtml(formatRelative(trade.createdAt))}</small></span>
+          <div class="trade-card-user"><h3 id="${escapeHtml(headingId)}">${escapeHtml(trade.username)}</h3><small title="${escapeHtml(fullDate(trade.createdAt))}">${escapeHtml(formatRelative(trade.createdAt))}</small></div>
           <span class="trade-card-head-meta">
             <span class="trade-card-format"><i class="fa-solid ${mode.icon}" aria-hidden="true"></i>${mode.label}</span>
             <span class="trade-status${trade.status === 'completed' ? ' completed' : ''}"><i class="fa-solid fa-circle" aria-hidden="true"></i>${trade.status === 'completed' ? l('trading.status.completed', 'Terminée') : l('trading.status.open', 'Ouverte')}</span>
           </span>
-          <button class="trade-save-button${saved ? ' active' : ''}" type="button" data-save-trade="${escapeHtml(trade.id)}" aria-label="${saved ? 'Retirer' : 'Ajouter'} l'offre de ${escapeHtml(trade.username)} ${saved ? 'des' : 'aux'} sauvegardées" aria-pressed="${saved}">
+          <button class="trade-save-button${saved ? ' active' : ''}" type="button" data-save-trade="${escapeHtml(trade.id)}" aria-label="${escapeHtml(saved
+            ? l('trading.saved.removeAria', `Retirer l'offre de ${trade.username} des sauvegardées`, { username: trade.username })
+            : l('trading.saved.addAria', `Ajouter l'offre de ${trade.username} aux sauvegardées`, { username: trade.username }))}" aria-pressed="${saved}">
             <i class="fa-${saved ? 'solid' : 'regular'} fa-bookmark" aria-hidden="true"></i>
           </button>
         </header>
+        ${trustMarkup(trade)}
         <div class="trade-card-exchange">
           ${sideMarkup(trade.offered, trade.mode, 'give')}
           <div class="trade-card-swap" aria-hidden="true"><span><i class="fa-solid fa-arrow-right-arrow-left"></i></span></div>
           ${sideMarkup(trade.wanted, trade.mode, 'want')}
         </div>
-        ${trade.note ? `<p class="trade-card-note"><i class="fa-regular fa-message" aria-hidden="true"></i>${escapeHtml(trade.note)}</p>` : ''}
+        ${displayTradeNote(trade) ? `<p class="trade-card-note"><i class="fa-regular fa-message" aria-hidden="true"></i>${escapeHtml(displayTradeNote(trade))}</p>` : ''}
+        ${interactionMarkup(trade)}
         <footer class="trade-card-footer">
-          <span class="trade-response-count"><i class="fa-regular fa-comments" aria-hidden="true"></i>${pluralize(responses, 'contre-offre', 'contre-offres')}</span>
+          <span class="trade-response-count"><i class="fa-regular fa-comments" aria-hidden="true"></i>${escapeHtml(responses === 1
+            ? l('trading.responseCount.one', '1 contre-offre', { count: responses })
+            : l('trading.responseCount.many', `${responses} contre-offres`, { count: responses }))}</span>
+          <a class="btn btn-secondary trade-calculator-link trade-calculator-link-compact" href="${escapeHtml(calculatorUrlForTrade(trade))}" aria-label="${escapeHtml(calculatorAriaLabel(trade))}" title="${escapeHtml(calculatorAriaLabel(trade))}"><i class="fa-solid fa-calculator" aria-hidden="true"></i></a>
           <button class="btn btn-secondary trade-share-button" type="button" data-share-trade="${escapeHtml(trade.id)}" aria-label="${l('trading.share', "Partager l’offre")} ${escapeHtml(trade.username)}"><i class="fa-solid fa-share-nodes" aria-hidden="true"></i> ${l('trading.shareShort', 'Partager')}</button>
-          <button class="btn btn-primary" type="button" data-view-trade="${escapeHtml(trade.id)}" aria-haspopup="dialog" aria-controls="trade-detail-modal">${trade.owned ? l('trading.manage', 'Gérer') : trade.status === 'open' ? l('trading.prepare', 'Préparer une offre') : l('trading.view', 'Voir')} <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></button>
+          <button class="btn btn-primary trade-primary-action" type="button" data-view-trade="${escapeHtml(trade.id)}" data-trade-intent="${primaryAction.intent}" aria-haspopup="dialog" aria-controls="trade-detail-modal">${escapeHtml(l(primaryAction.key, primaryAction.fallback))} <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></button>
         </footer>
       </article>`;
   }
 
   function updateCounts(filteredCount) {
-    const mine = state.trades.filter((trade) => trade.owned).length;
-    const open = state.trades.filter((trade) => trade.status === 'open').length;
-    const counteroffers = state.trades.reduce((total, trade) => total + trade.responses.length, 0);
-    byId('all-trades-count').textContent = state.trades.length;
+    const visibleTrades = state.trades.filter((trade) => !state.blocked.has(trade.id));
+    const mine = visibleTrades.filter((trade) => trade.owned).length;
+    const open = visibleTrades.filter((trade) => trade.status === 'open').length;
+    const counteroffers = visibleTrades.reduce((total, trade) => total + trade.responses.length, 0);
+    byId('all-trades-count').textContent = visibleTrades.length;
     byId('my-trades-count').textContent = mine;
-    byId('saved-trades-count').textContent = state.saved.size;
+    byId('saved-trades-count').textContent = visibleTrades.filter((trade) => state.saved.has(trade.id)).length;
     byId('open-trades-stat').textContent = open;
     byId('counteroffers-stat').textContent = counteroffers;
-    byId('trade-results-count').textContent = l('trading.localResults', `${pluralize(filteredCount, 'offre affichée', 'offres affichées')} · données locales`, { count: pluralize(filteredCount, 'offre affichée', 'offres affichées') });
+    byId('trade-results-count').textContent = filteredCount === 1
+      ? l('trading.results.one', '1 offre affichée · données locales', { count: filteredCount })
+      : l('trading.results.many', `${filteredCount} offres affichées · données locales`, { count: filteredCount });
   }
 
   function hasActiveFilters() {
@@ -488,7 +815,9 @@
     if (!option) return;
     const mixedUnits = state.mode === 'all';
     option.disabled = mixedUnits;
-    option.textContent = mixedUnits ? 'Valeur (choisir un format)' : 'Plus grande valeur';
+    option.textContent = mixedUnits
+      ? l('trading.sort.chooseFormat', 'Valeur (choisir un format)')
+      : l('trading.sort.value', 'Plus grande valeur');
     if (mixedUnits && state.sort === 'value-desc') {
       state.sort = 'newest';
       byId('trade-sort').value = 'newest';
@@ -506,17 +835,24 @@
     if (!result.length) {
       const emptyCopy = byId('trade-empty-copy');
       const emptyAction = byId('trade-empty-action');
-      if (state.view === 'mine') {
-        emptyCopy.textContent = 'Tu n’as encore publié aucune offre sur cet appareil.';
-        emptyAction.textContent = 'Publier une offre';
+      const blockedMatches = state.blocked.size
+        ? filteredTrades(true).filter((trade) => state.blocked.has(trade.id))
+        : [];
+      if (blockedMatches.length) {
+        emptyCopy.textContent = l('trading.empty.blocked', 'Toutes les offres de cette vue sont masquées sur cet appareil.');
+        emptyAction.textContent = l('trading.moderation.restoreAll', 'Réafficher les offres masquées');
+        emptyAction.dataset.emptyMode = 'unblock-all';
+      } else if (state.view === 'mine') {
+        emptyCopy.textContent = l('trading.empty.mine', 'Tu n’as encore publié aucune offre sur cet appareil.');
+        emptyAction.textContent = l('trading.create', 'Publier une offre');
         emptyAction.dataset.emptyMode = 'create';
       } else if (state.view === 'saved') {
-        emptyCopy.textContent = 'Sauvegarde une offre avec l’icône marque-page pour la retrouver ici.';
-        emptyAction.textContent = 'Voir toutes les offres';
+        emptyCopy.textContent = l('trading.empty.saved', 'Sauvegarde une offre avec l’icône marque-page pour la retrouver ici.');
+        emptyAction.textContent = l('trading.viewAll', 'Voir toutes les offres');
         emptyAction.dataset.emptyMode = 'reset';
       } else {
-        emptyCopy.textContent = 'Essaie une autre recherche ou réinitialise les filtres.';
-        emptyAction.textContent = 'Réinitialiser les filtres';
+        emptyCopy.textContent = l('trading.empty.filtered', 'Essaie une autre recherche ou réinitialise les filtres.');
+        emptyAction.textContent = l('trading.clearFilters', 'Réinitialiser les filtres');
         emptyAction.dataset.emptyMode = 'reset';
       }
     }
@@ -543,6 +879,25 @@
     renderTrades();
   }
 
+  function applyCalculatorHandoff() {
+    const query = new URLSearchParams(window.location.search);
+    const requestedMode = query.get('mode');
+    const requestedSearch = String(query.get('q') || '').trim().slice(0, 60);
+    let applied = false;
+
+    if (['physical', 'permanent'].includes(requestedMode)) {
+      state.mode = requestedMode;
+      byId('trade-mode-filter').value = requestedMode;
+      applied = true;
+    }
+    if (requestedSearch) {
+      state.search = requestedSearch;
+      byId('trade-search').value = requestedSearch;
+      applied = true;
+    }
+    return applied;
+  }
+
   function pickerSelection(kind) {
     if (kind === 'counter') return state.counter;
     return state.create[kind];
@@ -563,7 +918,7 @@
     container.innerHTML = [...selected].map((fruitId) => {
       const fruit = fruitById.get(fruitId);
       if (!fruit) return '';
-      return `<button class="selected-fruit-chip" type="button" data-picker-remove="${kind}" data-fruit-id="${escapeHtml(fruitId)}" aria-label="Retirer ${escapeHtml(fruit.name)}"><img src="${fruitImagePath(fruit)}" alt="" width="512" height="512">${escapeHtml(fruit.name)} <i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`;
+      return `<button class="selected-fruit-chip" type="button" data-picker-remove="${kind}" data-fruit-id="${escapeHtml(fruitId)}" aria-label="${escapeHtml(l('trading.picker.removeAria', `Retirer ${fruit.name}`, { fruit: fruit.name }))}"><img src="${fruitImagePath(fruit)}" alt="" width="512" height="512">${escapeHtml(fruit.name)} <i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`;
     }).join('');
   }
 
@@ -581,7 +936,7 @@
     const matches = fruits.filter((fruit) => !normalized || fruit.name.toLocaleLowerCase('fr').includes(normalized));
 
     if (!matches.length) {
-      container.innerHTML = `<p class="picker-no-results">${l('trading.noneFound', 'Aucun fruit trouvé.')}</p>`;
+      container.innerHTML = `<div class="picker-no-results"><p>${escapeHtml(l('trading.noneFound', 'Aucun fruit trouvé.'))}</p><button type="button" data-clear-picker-search="${kind}">${escapeHtml(l('trading.picker.clearSearch', 'Effacer la recherche'))}</button></div>`;
       renderSelected(kind);
       return;
     }
@@ -624,11 +979,11 @@
           ? state.create.offered
           : new Set(activeTrade?.offered.map((line) => line.fruitId) || []);
       if (opposite.has(fruitId)) {
-        showToast('Un même fruit ne peut pas être des deux côtés.', 'warning');
+        showToast(l('trading.validation.sameFruitBothSides', 'Un même fruit ne peut pas être des deux côtés.'), 'warning');
         return;
       }
       if (selected.size >= MAX_FRUITS) {
-        showToast(`Maximum ${MAX_FRUITS} fruits par côté.`, 'warning');
+        showToast(l('trading.validation.maxPerSide', `Maximum ${MAX_FRUITS} fruits par côté.`, { count: MAX_FRUITS }), 'warning');
         return;
       }
       selected.add(fruitId);
@@ -664,9 +1019,11 @@
     const largest = Math.max(offeredValue, wantedValue);
     const gap = largest ? Math.round(Math.abs(offeredValue - wantedValue) / largest * 100) : 0;
     byId('create-value-preview').innerHTML = `
-      <span>Tu proposes<strong>${formatValue(offeredValue, mode)}</strong></span>
-      <b class="trade-value-gap"><i class="fa-solid fa-chart-simple" aria-hidden="true"></i>${offeredValue && wantedValue ? `Écart wiki ${gap}%` : 'Ajoute les deux côtés'}</b>
-      <span>Tu recherches<strong>${formatValue(wantedValue, mode)}</strong></span>`;
+      <span>${escapeHtml(l('trading.giveYou', 'Tu proposes'))}<strong>${formatValue(offeredValue, mode)}</strong></span>
+      <b class="trade-value-gap"><i class="fa-solid fa-chart-simple" aria-hidden="true"></i>${escapeHtml(offeredValue && wantedValue
+        ? l('trading.wikiGap', `Écart wiki ${gap}%`, { gap })
+        : l('trading.addBothSides', 'Ajoute les deux côtés'))}</b>
+      <span>${escapeHtml(l('trading.wantYou', 'Tu recherches'))}<strong>${formatValue(wantedValue, mode)}</strong></span>`;
   }
 
   function setPageInert(inert) {
@@ -754,47 +1111,52 @@
     restore.disabled = !createDraft;
     clear.hidden = !createDraft;
     if (!createDraft) {
-      title.textContent = 'Brouillon local';
-      status.textContent = 'Aucun brouillon enregistré sur cet appareil.';
+      title.textContent = l('trading.draft.title', 'Brouillon local');
+      status.textContent = l('trading.draft.none', 'Aucun brouillon enregistré sur cet appareil.');
       return;
     }
-    title.textContent = 'Brouillon prêt à restaurer';
+    title.textContent = l('trading.draft.ready', 'Brouillon prêt à restaurer');
     const fruitCount = createDraft.offered.length + createDraft.wanted.length;
-    status.textContent = `Enregistré ${formatRelative(createDraft.savedAt)} · ${pluralize(fruitCount, 'fruit sélectionné', 'fruits sélectionnés')}`;
+    const selectedCopy = fruitCount === 1
+      ? l('trading.draft.fruit.one', '1 fruit sélectionné', { count: fruitCount })
+      : l('trading.draft.fruit.many', `${fruitCount} fruits sélectionnés`, { count: fruitCount });
+    status.textContent = l('trading.draft.savedStatus', `Enregistré ${formatRelative(createDraft.savedAt)} · ${selectedCopy}`, {
+      time: formatRelative(createDraft.savedAt), count: fruitCount, fruits: selectedCopy
+    });
   }
 
   function saveCreateDraft() {
     const draft = sanitizeDraft(createDraftSnapshot());
     if (!draft) {
-      showToast('Ajoute un pseudo, un fruit ou un message avant de sauvegarder.', 'warning');
+      showToast(l('trading.draft.emptyWarning', 'Ajoute un pseudo, un fruit ou un message avant de sauvegarder.'), 'warning');
       return;
     }
     if (!safeJsonWrite(STORAGE.draft, draft)) return;
     createDraft = draft;
     updateDraftPanel();
-    showToast('Brouillon sauvegardé sur cet appareil.');
-    announce('Brouillon de l’offre sauvegardé localement.');
+    showToast(l('trading.draft.savedToast', 'Brouillon sauvegardé sur cet appareil.'));
+    announce(l('trading.draft.savedAnnouncement', 'Brouillon de l’offre sauvegardé localement.'));
   }
 
   function removeCreateDraft(showFeedback = true) {
     try {
       localStorage.removeItem(STORAGE.draft);
     } catch (error) {
-      if (showFeedback) showToast('Impossible de supprimer le brouillon local.', 'warning');
+      if (showFeedback) showToast(l('trading.draft.deleteFailed', 'Impossible de supprimer le brouillon local.'), 'warning');
       return false;
     }
     createDraft = null;
     updateDraftPanel();
     if (showFeedback) {
-      showToast('Brouillon supprimé de cet appareil.');
-      announce('Brouillon local supprimé.');
+      showToast(l('trading.draft.deletedToast', 'Brouillon supprimé de cet appareil.'));
+      announce(l('trading.draft.deletedAnnouncement', 'Brouillon local supprimé.'));
     }
     return true;
   }
 
   function restoreCreateDraft() {
     if (!createDraft) {
-      showToast('Aucun brouillon à restaurer.', 'warning');
+      showToast(l('trading.draft.noneToRestore', 'Aucun brouillon à restaurer.'), 'warning');
       return;
     }
     byId('trade-username').value = createDraft.username;
@@ -806,8 +1168,8 @@
     clearCreateErrors();
     byId('trade-note-count').textContent = String(createDraft.note.length);
     renderAllPickers();
-    showToast('Brouillon restauré. Tu peux continuer ton offre.');
-    announce('Brouillon restauré dans le formulaire.');
+    showToast(l('trading.draft.restoredToast', 'Brouillon restauré. Tu peux continuer ton offre.'));
+    announce(l('trading.draft.restoredAnnouncement', 'Brouillon restauré dans le formulaire.'));
     window.requestAnimationFrame(() => byId('trade-username').focus());
   }
 
@@ -850,28 +1212,56 @@
     }
   }
 
+  function setFormBusy(form, busy, message) {
+    const button = form?.querySelector('[type="submit"]');
+    if (!button) return;
+    if (busy) {
+      button.dataset.idleHtml = button.innerHTML;
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
+      button.innerHTML = `<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> <span>${escapeHtml(message)}</span>`;
+    } else {
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+      if (button.dataset.idleHtml) {
+        button.innerHTML = button.dataset.idleHtml;
+        delete button.dataset.idleHtml;
+      }
+    }
+  }
+
   function validateCreateForm() {
     clearCreateErrors();
     const username = byId('trade-username').value.trim();
     const errors = [];
+    const messages = [];
     if (!USERNAME_PATTERN.test(username)) {
-      setCreateError('username', 'Utilise 3 à 20 lettres, chiffres ou underscores.');
+      const message = l('trading.validation.username', 'Utilise 3 à 20 lettres, chiffres ou underscores.');
+      setCreateError('username', message);
       errors.push(byId('trade-username'));
+      messages.push(message);
     }
     if (!state.create.offered.size) {
-      setCreateError('offered', 'Sélectionne au moins un fruit à proposer.');
+      const message = l('trading.validation.offeredRequired', 'Sélectionne au moins un fruit à proposer.');
+      setCreateError('offered', message);
       errors.push($('[data-picker-fieldset="offered"]'));
+      messages.push(message);
     }
     if (!state.create.wanted.size) {
-      setCreateError('wanted', 'Sélectionne au moins un fruit à rechercher.');
+      const message = l('trading.validation.wantedRequired', 'Sélectionne au moins un fruit à rechercher.');
+      setCreateError('wanted', message);
       errors.push($('[data-picker-fieldset="wanted"]'));
+      messages.push(message);
     }
     const overlaps = [...state.create.offered].some((fruitId) => state.create.wanted.has(fruitId));
     if (overlaps) {
-      setCreateError('wanted', 'Le même fruit ne peut pas être proposé et recherché.');
+      const message = l('trading.validation.sameFruitBothSides', 'Le même fruit ne peut pas être proposé et recherché.');
+      setCreateError('wanted', message);
       errors.push($('[data-picker-fieldset="wanted"]'));
+      messages.push(message);
     }
     errors[0]?.focus();
+    if (messages.length) announceError(messages[0]);
     return !errors.length;
   }
 
@@ -879,6 +1269,7 @@
     event.preventDefault();
     if (isSubmitting || !validateCreateForm()) return;
     isSubmitting = true;
+    setFormBusy(event.currentTarget, true, l('trading.feedback.publishing', 'Publication…'));
     const mode = byId('trade-mode').value === 'permanent' ? 'permanent' : 'physical';
     const trade = {
       id: uniqueId('trade'),
@@ -886,6 +1277,8 @@
       mode,
       status: 'open',
       owned: true,
+      trust: defaultTrust(byId('trade-username').value.trim(), true),
+      localInteraction: { responseId: null, state: 'awaiting_response', updatedAt: new Date().toISOString() },
       offered: [...state.create.offered].map((fruitId) => ({ fruitId, quantity: 1 })),
       wanted: [...state.create.wanted].map((fruitId) => ({ fruitId, quantity: 1 })),
       note: byId('trade-note').value.trim().slice(0, 180),
@@ -893,80 +1286,124 @@
       responses: []
     };
     state.trades.unshift(trade);
+    state.tracker.set(trade.id, { stage: 'prepared', updatedAt: new Date().toISOString() });
     persistTrades();
+    persistTracker();
     removeCreateDraft(false);
     resetFilters();
     resetCreateForm();
     closeCreate();
-    showToast('Ton offre a été ajoutée à cette démo locale.');
-    announce('Offre publiée localement.');
-    window.setTimeout(() => { isSubmitting = false; }, 0);
+    showToast(l('trading.feedback.published', 'Ton offre a été ajoutée à cette démo locale.'));
+    announce(l('trading.feedback.publishedAnnouncement', 'Offre publiée localement.'));
+    window.setTimeout(() => {
+      isSubmitting = false;
+      setFormBusy(byId('create-trade-form'), false, '');
+    }, 0);
+  }
+
+  function canRespondToTrade(trade) {
+    const stateName = interactionState(trade);
+    return !trade.owned
+      && trade.status === 'open'
+      && !['offer_sent', 'accepted', 'completed'].includes(stateName);
+  }
+
+  function responseOutcomeMeta(outcome) {
+    if (outcome === 'accepted') return { key: 'trading.response.accepted', fallback: 'Acceptée', icon: 'fa-check' };
+    if (outcome === 'declined') return { key: 'trading.response.declined', fallback: 'Refusée', icon: 'fa-xmark' };
+    return { key: 'trading.response.pending', fallback: 'À examiner', icon: 'fa-clock' };
   }
 
   function detailMarkup(trade) {
     const mode = modeCopy(trade.mode);
     const history = trade.responses.slice(-5).reverse();
     const responseMarkup = history.length
-      ? `<div class="counter-list">${history.map((response) => `
-          <div class="counter-item">
+      ? `<div class="counter-list">${history.map((response) => {
+          const outcome = responseOutcomeMeta(response.outcome);
+          const fruitNames = response.offered.map((line) => fruitById.get(line.fruitId)?.name || '').join(' + ');
+          const actions = trade.owned && trade.status === 'open' && response.outcome === 'pending'
+            ? `<div class="counter-item-actions">
+                <button type="button" data-response-action="accepted" data-response-id="${escapeHtml(response.id)}" aria-label="${escapeHtml(l('trading.response.acceptAria', `Accepter l’offre de ${response.username}`, { username: response.username }))}"><i class="fa-solid fa-check" aria-hidden="true"></i><span>${escapeHtml(l('trading.response.accept', 'Accepter'))}</span></button>
+                <button type="button" data-response-action="declined" data-response-id="${escapeHtml(response.id)}" aria-label="${escapeHtml(l('trading.response.declineAria', `Refuser l’offre de ${response.username}`, { username: response.username }))}"><i class="fa-solid fa-xmark" aria-hidden="true"></i><span>${escapeHtml(l('trading.response.decline', 'Refuser'))}</span></button>
+              </div>`
+            : '';
+          return `
+          <div class="counter-item" data-response-item="${escapeHtml(response.id)}">
             <span class="trade-user-avatar" aria-hidden="true">${escapeHtml(initials(response.username))}</span>
-            <span class="counter-item-copy"><strong>${escapeHtml(response.username)} propose ${escapeHtml(response.offered.map((line) => fruitById.get(line.fruitId)?.name || '').join(' + '))}</strong><small>${response.note ? escapeHtml(response.note) : 'Sans message supplémentaire'}</small></span>
+            <span class="counter-item-copy"><strong>${escapeHtml(l('trading.response.proposes', `${response.username} propose ${fruitNames}`, {
+              username: response.username,
+              fruits: fruitNames
+            }))}</strong><small>${displayResponseNote(response) ? escapeHtml(displayResponseNote(response)) : escapeHtml(l('trading.response.noMessage', 'Sans message supplémentaire'))}</small></span>
             <time datetime="${escapeHtml(response.createdAt)}">${escapeHtml(formatRelative(response.createdAt))}</time>
-          </div>`).join('')}</div>`
-      : '<p>Aucune contre-offre locale pour le moment.</p>';
+            <span class="counter-outcome outcome-${response.outcome}" tabindex="-1"><i class="fa-solid ${outcome.icon}" aria-hidden="true"></i>${escapeHtml(l(outcome.key, outcome.fallback))}</span>
+            ${actions}
+          </div>`;
+        }).join('')}</div>`
+      : `<div class="counter-empty"><i class="fa-regular fa-comments" aria-hidden="true"></i><p>${escapeHtml(l('trading.response.none', 'Aucune contre-offre locale pour le moment.'))}</p></div>`;
 
-    const canRespond = !trade.owned && trade.status === 'open';
     return `
       <div class="detail-owner">
         <span class="trade-user-avatar" aria-hidden="true">${escapeHtml(initials(trade.username))}</span>
-        <span class="detail-owner-copy"><strong>${escapeHtml(trade.username)}</strong><small>Publiée ${escapeHtml(formatRelative(trade.createdAt))} · ${escapeHtml(fullDate(trade.createdAt))}</small></span>
+        <span class="detail-owner-copy"><strong>${escapeHtml(trade.username)}</strong><small>${escapeHtml(l('trading.detail.publishedAt', `Publiée ${formatRelative(trade.createdAt)} · ${fullDate(trade.createdAt)}`, {
+          relative: formatRelative(trade.createdAt), date: fullDate(trade.createdAt)
+        }))}</small></span>
         <span class="detail-owner-badges">
           <span class="trade-card-format"><i class="fa-solid ${mode.icon}" aria-hidden="true"></i>${mode.label}</span>
-          <span class="trade-status${trade.status === 'completed' ? ' completed' : ''}"><i class="fa-solid fa-circle" aria-hidden="true"></i>${trade.status === 'completed' ? 'Terminée' : 'Ouverte'}</span>
+          <span class="trade-status${trade.status === 'completed' ? ' completed' : ''}"><i class="fa-solid fa-circle" aria-hidden="true"></i>${trade.status === 'completed' ? l('trading.status.completed', 'Terminée') : l('trading.status.open', 'Ouverte')}</span>
         </span>
       </div>
+      ${trustMarkup(trade, true)}
+      ${interactionMarkup(trade, true)}
       <div class="detail-exchange">
         ${sideMarkup(trade.offered, trade.mode, 'give')}
         <div class="trade-card-swap" aria-hidden="true"><span><i class="fa-solid fa-arrow-right-arrow-left"></i></span></div>
         ${sideMarkup(trade.wanted, trade.mode, 'want')}
       </div>
-      ${trade.note ? `<p class="detail-note"><i class="fa-regular fa-message" aria-hidden="true"></i> ${escapeHtml(trade.note)}</p>` : ''}
-      <p class="detail-value-note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><span>Les valeurs ${mode.unit} viennent du wiki Blox Fruits sur Fandom. Elles servent uniquement de repère et ne déterminent pas la demande réelle entre joueurs.</span></p>
-      ${canRespond ? counterFormMarkup() : ''}
+      ${displayTradeNote(trade) ? `<p class="detail-note"><i class="fa-regular fa-message" aria-hidden="true"></i> ${escapeHtml(displayTradeNote(trade))}</p>` : ''}
+      <p class="detail-value-note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><span>${escapeHtml(l('trading.detail.wikiNotice', `Les valeurs ${mode.unit} viennent du wiki Blox Fruits sur Fandom. Elles servent uniquement de repère et ne déterminent pas la demande réelle entre joueurs.`, { unit: mode.unit }))}</span></p>
+      ${canRespondToTrade(trade) ? counterFormMarkup(trade) : ''}
+      ${trackerMarkup(trade)}
       <section class="counteroffer-history" aria-labelledby="counter-history-title">
-        <h3 id="counter-history-title">Réponses locales (${trade.responses.length})</h3>
-        <p>Ces réponses simulent l'activité sur cet appareil ; elles ne sont pas envoyées au joueur.</p>
+        <h3 id="counter-history-title">${escapeHtml(l('trading.response.title', `Réponses locales (${trade.responses.length})`, { count: trade.responses.length }))}</h3>
+        <p>${escapeHtml(l('trading.response.localCopy', "Ces réponses simulent l'activité sur cet appareil ; elles ne sont pas envoyées au joueur."))}</p>
         ${responseMarkup}
       </section>`;
   }
 
-  function counterFormMarkup() {
+  function counterFormMarkup(trade) {
+    const isCounter = interactionState(trade) === 'counter_received';
+    const title = isCounter
+      ? l('trading.counter.counterTitle', 'Faire une contre-offre')
+      : l('trading.counter.makeTitle', 'Faire une offre');
+    const submit = isCounter
+      ? l('trading.counter.sendCounter', 'Envoyer la contre-offre')
+      : l('trading.counter.sendOffer', 'Envoyer l’offre');
     return `
-      <section class="counteroffer-panel" aria-labelledby="counteroffer-title">
-        <h3 id="counteroffer-title">Simuler une contre-offre</h3>
-        <p>Indique ton pseudo et ce que tu proposes. Rien n'est envoyé hors de ce navigateur.</p>
+      <section class="counteroffer-panel" aria-labelledby="counteroffer-title" tabindex="-1">
+        <h3 id="counteroffer-title">${escapeHtml(title)}</h3>
+        <p>${escapeHtml(l('trading.counter.copy', "Indique ton pseudo et ce que tu proposes. Rien n'est envoyé hors de ce navigateur."))}</p>
         <form class="counteroffer-form" id="counteroffer-form" novalidate>
           <div class="form-grid">
             <div class="field-group">
-              <label for="counter-username">Ton pseudo Roblox</label>
+              <label for="counter-username">${escapeHtml(l('trading.counter.usernameLabel', 'Ton pseudo Roblox'))}</label>
               <input id="counter-username" type="text" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_]+" placeholder="Ex. AtlasGaming" autocomplete="off" aria-describedby="counter-username-error">
               <span class="field-error" id="counter-username-error" aria-live="polite"></span>
             </div>
             <div class="field-group trade-note-field">
-              <label for="counter-note">Message <span>facultatif</span></label>
-              <input id="counter-note" type="text" maxlength="160" placeholder="Ex. Disponible maintenant" autocomplete="off">
+              <label for="counter-note">${escapeHtml(l('trading.messageLabel', 'Message'))} <span>${escapeHtml(l('trading.optional', 'facultatif'))}</span></label>
+              <input id="counter-note" type="text" maxlength="160" placeholder="${escapeHtml(l('trading.counter.notePlaceholder', 'Ex. Disponible maintenant'))}" autocomplete="off">
             </div>
           </div>
           <fieldset class="trade-fruit-fieldset counter-fruit-fieldset" data-picker-fieldset="counter" aria-describedby="counter-error" tabindex="-1">
-            <legend><span class="picker-step give"><i class="fa-solid fa-arrow-up" aria-hidden="true"></i></span><span><strong>Tu proposes en échange</strong><small>Sélectionne 1 à 4 fruits</small></span></legend>
-            <label class="picker-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Rechercher un fruit pour la contre-offre</span><input type="search" placeholder="Rechercher…" data-picker-search="counter" autocomplete="off"></label>
-            <div class="selected-fruits" id="counter-selected" aria-live="polite"><span>Aucun fruit sélectionné</span></div>
-            <div class="fruit-picker-list" id="counter-picker" role="group" aria-label="Fruits de la contre-offre"></div>
+            <legend><span class="picker-step give"><i class="fa-solid fa-arrow-up" aria-hidden="true"></i></span><span><strong>${escapeHtml(l('trading.counter.give', 'Tu proposes en échange'))}</strong><small>${escapeHtml(l('trading.selectOneToFour', 'Sélectionne 1 à 4 fruits'))}</small></span></legend>
+            <label class="picker-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only">${escapeHtml(l('trading.counter.searchLabel', 'Rechercher un fruit pour la contre-offre'))}</span><input type="search" placeholder="${escapeHtml(l('trading.pickerSearchPlaceholder', 'Rechercher…'))}" data-picker-search="counter" autocomplete="off"></label>
+            <div class="selected-fruits" id="counter-selected" aria-live="polite"><span>${escapeHtml(l('trading.noneSelected', 'Aucun fruit sélectionné'))}</span></div>
+            <div class="fruit-picker-list" id="counter-picker" role="group" aria-label="${escapeHtml(l('trading.counter.groupAria', 'Fruits de la contre-offre'))}"></div>
             <span class="field-error" id="counter-error" aria-live="polite"></span>
           </fieldset>
           <div class="counter-form-actions">
-            <button class="btn btn-secondary trade-share-button" type="button" data-share-active><i class="fa-solid fa-share-nodes" aria-hidden="true"></i> Partager l'annonce</button>
-            <button class="btn btn-primary" type="submit"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Enregistrer dans la démo</button>
+            <button class="btn btn-secondary trade-share-button" type="button" data-share-active><i class="fa-solid fa-share-nodes" aria-hidden="true"></i> ${escapeHtml(l('trading.counter.share', "Partager l'annonce"))}</button>
+            <button class="btn btn-primary" type="submit"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> ${escapeHtml(submit)}</button>
           </div>
         </form>
       </section>`;
@@ -975,13 +1412,21 @@
   function detailFooter(trade) {
     const ownerActions = trade.owned
       ? `<div class="detail-owner-actions">
-          <button class="btn btn-secondary" type="button" data-owner-status="${trade.status === 'open' ? 'completed' : 'open'}"><i class="fa-solid ${trade.status === 'open' ? 'fa-circle-check' : 'fa-rotate-left'}" aria-hidden="true"></i>${trade.status === 'open' ? 'Marquer terminée' : 'Rouvrir'}</button>
-          <button class="btn btn-danger-soft" type="button" data-delete-trade><i class="fa-solid fa-trash-can" aria-hidden="true"></i> Supprimer</button>
+          <button class="btn btn-secondary" type="button" data-owner-status="${trade.status === 'open' ? 'completed' : 'open'}"><i class="fa-solid ${trade.status === 'open' ? 'fa-circle-check' : 'fa-rotate-left'}" aria-hidden="true"></i>${trade.status === 'open' ? escapeHtml(l('trading.owner.complete', 'Marquer terminée')) : escapeHtml(l('trading.owner.reopen', 'Rouvrir'))}</button>
+          <button class="btn btn-danger-soft" type="button" data-delete-trade><i class="fa-solid fa-trash-can" aria-hidden="true"></i> ${escapeHtml(l('trading.owner.delete', 'Supprimer'))}</button>
         </div>`
       : '';
+    const action = primaryTradeAction(trade);
+    const primary = canRespondToTrade(trade)
+      ? `<button class="btn btn-primary detail-primary-action" type="button" data-focus-counter><i class="fa-solid fa-paper-plane" aria-hidden="true"></i>${escapeHtml(l(action.key, action.fallback))}</button>`
+      : shouldShowTracker(trade)
+        ? `<button class="btn btn-primary detail-primary-action" type="button" data-focus-tracker><i class="fa-solid fa-route" aria-hidden="true"></i>${escapeHtml(l('trading.tracker.view', 'Voir le suivi'))}</button>`
+        : '';
     return `${ownerActions}
-      <button class="btn btn-secondary trade-share-button" type="button" data-share-active><i class="fa-solid fa-share-nodes" aria-hidden="true"></i> Partager</button>
-      <button class="btn btn-primary" type="button" data-close-detail>Fermer</button>`;
+      <a class="btn btn-secondary trade-calculator-link detail-calculator-link" href="${escapeHtml(calculatorUrlForTrade(trade))}" aria-label="${escapeHtml(calculatorAriaLabel(trade))}"><i class="fa-solid fa-calculator" aria-hidden="true"></i><span>${escapeHtml(l('trading.calculateTrade', 'Calculer cet échange'))}</span></a>
+      <button class="btn btn-secondary trade-share-button" type="button" data-share-active><i class="fa-solid fa-share-nodes" aria-hidden="true"></i> ${escapeHtml(l('trading.shareShort', 'Partager'))}</button>
+      <button class="btn btn-secondary detail-close-action" type="button" data-close-detail>${escapeHtml(l('trading.close', 'Fermer'))}</button>
+      ${primary}`;
   }
 
   function renderTradeDetail() {
@@ -990,17 +1435,18 @@
       closeDetail();
       return;
     }
-    byId('trade-detail-title').textContent = `Offre de ${trade.username}`;
+    byId('trade-detail-title').textContent = l('trading.detail.offerBy', `Offre de ${trade.username}`, { username: trade.username });
     byId('trade-detail-body').innerHTML = detailMarkup(trade);
     byId('trade-detail-foot').innerHTML = detailFooter(trade);
-    if (!trade.owned && trade.status === 'open') renderPicker('counter');
+    if (canRespondToTrade(trade)) renderPicker('counter');
   }
 
-  function openTradeDetail(tradeId, trigger) {
+  function openTradeDetail(tradeId, trigger, intent = 'view') {
     const trade = state.trades.find((item) => item.id === tradeId);
     if (!trade) return;
     state.activeTradeId = tradeId;
     state.counter.clear();
+    if (['offer', 'counter', 'manage', 'track'].includes(intent)) ensureTracker(tradeId, trade.status === 'completed' ? 'completed' : 'prepared');
     renderTradeDetail();
     const modal = byId('trade-detail-modal');
     $('.trade-detail-card', modal).scrollTop = 0;
@@ -1008,8 +1454,8 @@
     window.requestAnimationFrame(() => byId('trade-detail-title').focus());
   }
 
-  function closeDetail() {
-    closeModal(byId('trade-detail-modal'));
+  function closeDetail(restoreFocus = true) {
+    closeModal(byId('trade-detail-modal'), restoreFocus);
     state.activeTradeId = null;
     state.counter.clear();
   }
@@ -1020,7 +1466,7 @@
     if (isSubmitting) return;
     const trade = state.trades.find((item) => item.id === state.activeTradeId);
     if (!trade || trade.status !== 'open' || trade.owned) {
-      showToast('Cette offre ne peut plus recevoir de réponse.', 'warning');
+      showToast(l('trading.feedback.cannotRespond', 'Cette offre ne peut plus recevoir de réponse.'), 'warning');
       return;
     }
 
@@ -1037,14 +1483,16 @@
     const username = usernameInput.value.trim();
     if (!USERNAME_PATTERN.test(username)) {
       usernameInput.setAttribute('aria-invalid', 'true');
-      usernameError.textContent = 'Utilise 3 à 20 lettres, chiffres ou underscores.';
+      usernameError.textContent = l('trading.validation.username', 'Utilise 3 à 20 lettres, chiffres ou underscores.');
+      announceError(usernameError.textContent);
       usernameInput.focus();
       return;
     }
     if (!state.counter.size) {
       fieldset.classList.add('has-error');
       fieldset.setAttribute('aria-invalid', 'true');
-      pickerError.textContent = 'Sélectionne au moins un fruit pour ta contre-offre.';
+      pickerError.textContent = l('trading.validation.counterRequired', 'Sélectionne au moins un fruit pour ta contre-offre.');
+      announceError(pickerError.textContent);
       fieldset.focus();
       return;
     }
@@ -1052,26 +1500,38 @@
     if ([...state.counter].some((fruitId) => sourceIds.has(fruitId))) {
       fieldset.classList.add('has-error');
       fieldset.setAttribute('aria-invalid', 'true');
-      pickerError.textContent = 'Choisis un fruit différent de ceux proposés par ce joueur.';
+      pickerError.textContent = l('trading.validation.counterDifferent', 'Choisis un fruit différent de ceux proposés par ce joueur.');
+      announceError(pickerError.textContent);
       fieldset.focus();
       return;
     }
 
     isSubmitting = true;
+    const wasCounteroffer = interactionState(trade) === 'counter_received';
+    setFormBusy(event.target, true, l('trading.feedback.sendingOffer', 'Envoi…'));
+    const responseId = uniqueId('counter');
     trade.responses.push({
-      id: uniqueId('counter'),
+      id: responseId,
       username,
       offered: [...state.counter].map((fruitId) => ({ fruitId, quantity: 1 })),
       note: byId('counter-note').value.trim().slice(0, 160),
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      local: true,
+      outcome: 'pending'
     });
+    trade.localInteraction = { responseId, state: 'offer_sent', updatedAt: new Date().toISOString() };
+    ensureTracker(trade.id, 'player_contacted');
     persistTrades();
     state.counter.clear();
     renderTrades();
     renderTradeDetail();
-    window.requestAnimationFrame(() => byId('trade-detail-title').focus());
-    showToast('Contre-offre enregistrée dans cette démo locale.');
-    announce('Contre-offre enregistrée localement.');
+    window.requestAnimationFrame(() => $('[data-interaction-state]', byId('trade-detail-modal'))?.focus());
+    showToast(wasCounteroffer
+      ? l('trading.feedback.counterSent', 'Contre-offre enregistrée sur cet appareil.')
+      : l('trading.feedback.offerSent', 'Offre enregistrée sur cet appareil.'));
+    announce(wasCounteroffer
+      ? l('trading.feedback.counterSentAnnouncement', 'Contre-offre enregistrée localement.')
+      : l('trading.feedback.offerSentAnnouncement', 'Offre enregistrée localement.'));
     window.setTimeout(() => { isSubmitting = false; }, 0);
   }
 
@@ -1080,53 +1540,203 @@
     if (!trade) return;
     if (state.saved.has(tradeId)) {
       state.saved.delete(tradeId);
-      showToast('Offre retirée des sauvegardées.');
+      showToast(l('trading.feedback.unsaved', 'Offre retirée des sauvegardées.'));
     } else {
       state.saved.add(tradeId);
-      showToast('Offre sauvegardée sur cet appareil.');
+      showToast(l('trading.feedback.saved', 'Offre sauvegardée sur cet appareil.'));
     }
     persistSaved();
     renderTrades();
     window.requestAnimationFrame(() => document.querySelector(`[data-save-trade="${tradeId}"]`)?.focus());
   }
 
+  function focusAfterRender(selector, fallbackSelector) {
+    window.requestAnimationFrame(() => {
+      const modalTarget = activeModal ? $(selector, activeModal) : null;
+      const candidate = modalTarget || $(selector);
+      const target = candidate && !candidate.disabled ? candidate : fallbackSelector ? $(fallbackSelector) : null;
+      target?.focus({ preventScroll: true });
+    });
+  }
+
+  function updateBlockUndo() {
+    const undo = byId('trade-block-undo');
+    if (!undo) return;
+    const trade = state.trades.find((item) => item.id === state.lastBlockedTradeId && state.blocked.has(item.id));
+    undo.hidden = !trade;
+    if (trade) {
+      byId('trade-block-undo-message').textContent = l('trading.moderation.blockedNamed', `Le profil de ${trade.username} est masqué sur cet appareil.`, { username: trade.username });
+    }
+  }
+
+  function toggleReported(tradeId) {
+    const trade = state.trades.find((item) => item.id === tradeId && !item.owned);
+    if (!trade) return;
+    const removing = state.reported.has(tradeId);
+    if (removing) state.reported.delete(tradeId);
+    else state.reported.add(tradeId);
+    persistModeration();
+    renderTrades();
+    if (state.activeTradeId === tradeId) renderTradeDetail();
+    focusAfterRender(`[data-report-trade="${tradeId}"]`, `[data-view-trade="${tradeId}"]`);
+    const message = removing
+      ? l('trading.feedback.reportRemoved', 'Signalement local retiré.')
+      : l('trading.feedback.reported', 'Profil signalé sur cet appareil.');
+    showToast(message);
+    announce(message);
+  }
+
+  function blockTrade(tradeId) {
+    const trade = state.trades.find((item) => item.id === tradeId && !item.owned);
+    if (!trade || state.blocked.has(tradeId)) return;
+    state.trades
+      .filter((item) => !item.owned && item.username === trade.username)
+      .forEach((item) => state.blocked.add(item.id));
+    state.lastBlockedTradeId = tradeId;
+    persistModeration();
+    if (state.activeTradeId === tradeId) closeDetail(false);
+    renderTrades();
+    updateBlockUndo();
+    focusAfterRender('[data-undo-block]', '#trade-empty-action');
+    const message = l('trading.feedback.blocked', `Profil de ${trade.username} masqué. Tu peux annuler cette action.`, { username: trade.username });
+    showToast(message, 'info');
+    announce(message);
+  }
+
+  function undoBlock() {
+    const tradeId = state.lastBlockedTradeId;
+    const trade = state.trades.find((item) => item.id === tradeId);
+    if (!tradeId || !state.blocked.has(tradeId)) return;
+    state.trades
+      .filter((item) => item.username === trade?.username)
+      .forEach((item) => state.blocked.delete(item.id));
+    state.lastBlockedTradeId = null;
+    persistModeration();
+    renderTrades();
+    updateBlockUndo();
+    focusAfterRender(`[data-view-trade="${tradeId}"]`, '#trade-empty-action');
+    const message = l('trading.feedback.unblocked', `Le profil de ${trade?.username || ''} est de nouveau visible.`, { username: trade?.username || '' });
+    showToast(message);
+    announce(message);
+  }
+
+  function unblockAll() {
+    if (!state.blocked.size) return;
+    state.blocked.clear();
+    state.lastBlockedTradeId = null;
+    persistModeration();
+    renderTrades();
+    updateBlockUndo();
+    focusAfterRender('[data-view-trade]', '#trade-empty-action');
+    const message = l('trading.feedback.unblockedAll', 'Toutes les offres masquées sont de nouveau visibles.');
+    showToast(message);
+    announce(message);
+  }
+
+  function updateResponseOutcome(responseId, outcome) {
+    const trade = state.trades.find((item) => item.id === state.activeTradeId && item.owned && item.status === 'open');
+    const response = trade?.responses.find((item) => item.id === responseId);
+    if (!trade || !response || !['accepted', 'declined'].includes(outcome)) return;
+    response.outcome = outcome;
+    trade.localInteraction = { responseId, state: outcome, updatedAt: new Date().toISOString() };
+    if (outcome === 'accepted') ensureTracker(trade.id, 'exchange_pending');
+    persistTrades();
+    renderTrades();
+    renderTradeDetail();
+    focusAfterRender(`[data-response-item="${responseId}"] .counter-outcome`, '[data-interaction-state]');
+    const message = outcome === 'accepted'
+      ? l('trading.feedback.responseAccepted', 'Offre acceptée localement. Vérifie maintenant l’échange dans le jeu.')
+      : l('trading.feedback.responseDeclined', 'Offre refusée localement.');
+    showToast(message);
+    announce(message);
+  }
+
+  function advanceTracker(tradeId) {
+    const trade = state.trades.find((item) => item.id === tradeId);
+    if (!trade) return;
+    const current = ensureTracker(tradeId, 'prepared');
+    const currentIndex = TRACKER_STAGES.indexOf(current.stage);
+    const nextStage = TRACKER_STAGES[currentIndex + 1];
+    if (!nextStage) return;
+    state.tracker.set(tradeId, { stage: nextStage, updatedAt: new Date().toISOString() });
+    if (nextStage === 'completed') {
+      trade.localInteraction = { responseId: trade.localInteraction?.responseId || null, state: 'completed', updatedAt: new Date().toISOString() };
+      if (trade.owned) trade.status = 'completed';
+      persistTrades();
+    }
+    persistTracker();
+    renderTrades();
+    if (state.activeTradeId === tradeId) renderTradeDetail();
+    focusAfterRender(`[data-advance-tracker="${tradeId}"]`, `[data-trade-tracker]`);
+    const meta = trackerStageMeta(nextStage);
+    const message = l('trading.feedback.trackerAdvanced', `Suivi mis à jour : ${l(meta.key, meta.fallback)}.`, { stage: l(meta.key, meta.fallback) });
+    showToast(message);
+    announce(message);
+  }
+
   function updateOwnedStatus(status) {
     const trade = state.trades.find((item) => item.id === state.activeTradeId && item.owned);
     if (!trade || !['open', 'completed'].includes(status)) return;
     trade.status = status;
+    if (status === 'completed') {
+      trade.localInteraction = { responseId: trade.localInteraction?.responseId || null, state: 'completed', updatedAt: new Date().toISOString() };
+      state.tracker.set(trade.id, { stage: 'completed', updatedAt: new Date().toISOString() });
+    } else {
+      const pendingResponse = trade.responses.find((response) => response.outcome === 'pending');
+      trade.localInteraction = {
+        responseId: pendingResponse?.id || null,
+        state: pendingResponse ? 'counter_received' : 'awaiting_response',
+        updatedAt: new Date().toISOString()
+      };
+      state.tracker.set(trade.id, { stage: pendingResponse ? 'exchange_pending' : 'prepared', updatedAt: new Date().toISOString() });
+    }
     persistTrades();
+    persistTracker();
     renderTrades();
     renderTradeDetail();
-    showToast(status === 'completed' ? 'Offre marquée comme terminée.' : 'Offre rouverte.');
+    focusAfterRender('[data-owner-status]', '[data-interaction-state]');
+    showToast(status === 'completed'
+      ? l('trading.feedback.completed', 'Offre marquée comme terminée.')
+      : l('trading.feedback.reopened', 'Offre rouverte.'));
   }
 
   function deleteOwnedTrade() {
     const trade = state.trades.find((item) => item.id === state.activeTradeId && item.owned);
     if (!trade) return;
-    if (!window.confirm('Supprimer définitivement cette offre locale ?')) return;
+    if (!window.confirm(l('trading.confirm.delete', 'Supprimer définitivement cette offre locale ?'))) return;
     state.trades = state.trades.filter((item) => item.id !== trade.id);
     state.saved.delete(trade.id);
+    state.reported.delete(trade.id);
+    state.blocked.delete(trade.id);
+    state.tracker.delete(trade.id);
     persistTrades();
     persistSaved();
+    persistModeration();
+    persistTracker();
     closeDetail();
     renderTrades();
-    showToast('Offre locale supprimée.');
-    announce('Offre supprimée.');
+    showToast(l('trading.feedback.deleted', 'Offre locale supprimée.'));
+    announce(l('trading.feedback.deletedAnnouncement', 'Offre supprimée.'));
   }
 
   function tradeShareMessage(trade) {
     const mode = modeCopy(trade.mode);
     const list = (lines) => lines.map((line) => `${line.quantity > 1 ? `${line.quantity}× ` : ''}${fruitById.get(line.fruitId)?.name || ''}`).join(' + ');
+    const note = displayTradeNote(trade);
     return [
-      'Salam, voici une offre Itemsouq Trading (démo) :',
+      l('trading.shareMessage.intro', 'Salam, voici une offre Itemsouq Trading (démo) :'),
       '',
-      `Joueur : ${trade.username}`,
-      `Format : ${mode.label}`,
-      `Propose : ${list(trade.offered)} (${formatValue(linesValue(trade.offered, trade.mode), trade.mode)})`,
-      `Recherche : ${list(trade.wanted)} (${formatValue(linesValue(trade.wanted, trade.mode), trade.mode)})`,
-      trade.note ? `Message : ${trade.note}` : '',
+      l('trading.shareMessage.player', `Joueur : ${trade.username}`, { username: trade.username }),
+      l('trading.shareMessage.format', `Format : ${mode.label}`, { mode: mode.label }),
+      l('trading.shareMessage.offered', `Propose : ${list(trade.offered)} (${formatValue(linesValue(trade.offered, trade.mode), trade.mode)})`, {
+        fruits: list(trade.offered), value: formatValue(linesValue(trade.offered, trade.mode), trade.mode)
+      }),
+      l('trading.shareMessage.wanted', `Recherche : ${list(trade.wanted)} (${formatValue(linesValue(trade.wanted, trade.mode), trade.mode)})`, {
+        fruits: list(trade.wanted), value: formatValue(linesValue(trade.wanted, trade.mode), trade.mode)
+      }),
+      note ? l('trading.shareMessage.note', `Message : ${note}`, { note }) : '',
       '',
-      'Merci de tout vérifier dans la fenêtre d’échange. Ne partage jamais ton mot de passe, PIN ou OTP.'
+      l('trading.shareMessage.safety', 'Merci de tout vérifier dans la fenêtre d’échange. Ne partage jamais ton mot de passe, PIN ou OTP.')
     ].filter(Boolean).join('\n');
   }
 
@@ -1174,14 +1784,14 @@
     const trade = state.trades.find((item) => item.id === tradeId);
     if (!trade) return;
     const text = tradeShareMessage(trade);
-    const shareData = { title: `Offre Itemsouq de ${trade.username}`, text };
+    const shareData = { title: l('trading.shareMessage.title', `Offre Itemsouq de ${trade.username}`, { username: trade.username }), text };
     setShareBusy(trigger, true);
     try {
       if (typeof navigator.share === 'function') {
         try {
           await navigator.share(shareData);
-          showToast('Offre envoyée au menu de partage.', 'info');
-          announce('Offre partagée.');
+          showToast(l('trading.feedback.shareOpened', 'Offre envoyée au menu de partage.'), 'info');
+          announce(l('trading.feedback.sharedAnnouncement', 'Offre partagée.'));
           return;
         } catch (error) {
           if (error && error.name === 'AbortError') {
@@ -1191,10 +1801,10 @@
       }
       const copied = await copyShareText(text);
       if (copied) {
-        showToast('Offre copiée. Colle-la dans WhatsApp ou ton application préférée.', 'info');
-        announce('Texte de l’offre copié dans le presse-papiers.');
+        showToast(l('trading.feedback.copied', 'Offre copiée. Colle-la dans WhatsApp ou ton application préférée.'), 'info');
+        announce(l('trading.feedback.copiedAnnouncement', 'Texte de l’offre copié dans le presse-papiers.'));
       } else {
-        showToast('Impossible d’ouvrir le partage ou de copier le texte.', 'warning');
+        showToast(l('trading.feedback.shareFailed', 'Impossible d’ouvrir le partage ou de copier le texte.'), 'warning');
       }
     } finally {
       if (trigger?.isConnected) setShareBusy(trigger, false);
@@ -1202,24 +1812,34 @@
   }
 
   function resetTradingDemo() {
-    if (!window.confirm('Réinitialiser les offres, favoris et brouillon Trading de ce navigateur ?')) return;
+    if (!window.confirm(l('trading.confirm.resetAll', 'Réinitialiser les offres, favoris, suivis, profils masqués et brouillon Trading de ce navigateur ?'))) return;
     try {
       localStorage.removeItem(STORAGE.trades);
       localStorage.removeItem(STORAGE.saved);
       localStorage.removeItem(STORAGE.draft);
+      localStorage.removeItem(STORAGE.tracker);
+      localStorage.removeItem(STORAGE.reported);
+      localStorage.removeItem(STORAGE.blocked);
     } catch (error) {
-      showToast('Impossible de modifier le stockage local.', 'warning');
+      showToast(l('trading.feedback.storageResetFailed', 'Impossible de modifier le stockage local.'), 'warning');
       return;
     }
-    state.trades = demoTrades();
+    state.trades = sanitizeTrades(demoTrades());
     state.saved.clear();
+    state.tracker.clear();
+    state.reported.clear();
+    state.blocked.clear();
+    state.lastBlockedTradeId = null;
     createDraft = null;
     resetCreateForm();
     updateDraftPanel();
     persistTrades();
     persistSaved();
+    persistTracker();
+    persistModeration();
+    updateBlockUndo();
     resetFilters();
-    showToast('La démo Trading a été réinitialisée.');
+    showToast(l('trading.feedback.reset', 'La démo Trading a été réinitialisée.'));
   }
 
   function toggleMobileMenu(restoreFocus = false) {
@@ -1228,7 +1848,9 @@
     const open = menu.hidden;
     menu.hidden = !open;
     trigger.setAttribute('aria-expanded', String(open));
-    trigger.setAttribute('aria-label', open ? 'Fermer le menu' : 'Ouvrir le menu');
+    trigger.setAttribute('aria-label', open
+      ? l('trading.menu.close', 'Fermer le menu')
+      : l('trading.menu.open', 'Ouvrir le menu'));
     $('i', trigger).className = `fa-solid ${open ? 'fa-xmark' : 'fa-bars'}`;
     if (!open && restoreFocus) {
       window.requestAnimationFrame(() => {
@@ -1236,6 +1858,44 @@
         target?.focus();
       });
     }
+  }
+
+  function applyPageLocale() {
+    document.title = l('trading.meta.title', 'Trading communautaire · Itemsouq Fruits');
+    const description = document.querySelector('meta[name="description"]');
+    if (description) {
+      description.setAttribute('content', l('trading.meta.description', "Itemsouq Trading — publie et découvre des offres d'échange Blox Fruits au Maroc."));
+    }
+    if (byId('trade-toast')?.hidden) {
+      byId('trade-toast-message').textContent = l('trading.published', 'Offre publiée');
+    }
+    const shortcut = $('.trade-search-control kbd');
+    if (shortcut) {
+      const platform = navigator.userAgentData?.platform || navigator.platform || '';
+      shortcut.textContent = /Mac|iPhone|iPad/i.test(platform) ? '⌘ K' : 'Ctrl K';
+    }
+
+    $$('[data-language-toggle]').forEach((toggle) => {
+      const targetKey = language() === 'ary' ? 'language.switchToFrench' : 'language.switchToDarija';
+      const fallback = language() === 'ary' ? 'Afficher le site en français' : 'Afficher le site en Darija';
+      toggle.setAttribute('aria-label', l(targetKey, fallback));
+    });
+
+    const menuTrigger = $('.mobile-menu-trigger');
+    if (menuTrigger) {
+      menuTrigger.setAttribute('aria-label', menuTrigger.getAttribute('aria-expanded') === 'true'
+        ? l('trading.menu.close', 'Fermer le menu')
+        : l('trading.menu.open', 'Ouvrir le menu'));
+    }
+
+    let localizedStyle = byId('trading-localized-style');
+    if (!localizedStyle) {
+      localizedStyle = document.createElement('style');
+      localizedStyle.id = 'trading-localized-style';
+      document.head.append(localizedStyle);
+    }
+    localizedStyle.textContent = `.trade-card.is-owned::before { content: ${JSON.stringify(l('trading.ownedBadge', 'MON OFFRE'))}; }`;
+    updateBlockUndo();
   }
 
   function trapFocus(container, event) {
@@ -1288,6 +1948,7 @@
     byId('clear-trade-filters').addEventListener('click', resetFilters);
     byId('trade-empty-action').addEventListener('click', (event) => {
       if (event.currentTarget.dataset.emptyMode === 'create') openCreate(event.currentTarget);
+      else if (event.currentTarget.dataset.emptyMode === 'unblock-all') unblockAll();
       else resetFilters();
     });
     byId('reset-trading-demo').addEventListener('click', resetTradingDemo);
@@ -1307,7 +1968,7 @@
       const view = event.target.closest('[data-view-trade]');
       const share = event.target.closest('[data-share-trade]');
       if (save) toggleSaved(save.dataset.saveTrade);
-      else if (view) openTradeDetail(view.dataset.viewTrade, view);
+      else if (view) openTradeDetail(view.dataset.viewTrade, view, view.dataset.tradeIntent || 'view');
       else if (share) shareTrade(share.dataset.shareTrade, share);
     });
 
@@ -1315,9 +1976,39 @@
       const picker = event.target.closest('[data-picker]');
       const remove = event.target.closest('[data-picker-remove]');
       const ownerStatus = event.target.closest('[data-owner-status]');
+      const clearPickerSearch = event.target.closest('[data-clear-picker-search]');
+      const reportTrade = event.target.closest('[data-report-trade]');
+      const blockTradeButton = event.target.closest('[data-block-trade]');
+      const responseAction = event.target.closest('[data-response-action]');
+      const trackerAdvance = event.target.closest('[data-advance-tracker]');
       if (picker) togglePickerFruit(picker.dataset.picker, picker.dataset.fruitId);
       else if (remove) togglePickerFruit(remove.dataset.pickerRemove, remove.dataset.fruitId);
       else if (ownerStatus) updateOwnedStatus(ownerStatus.dataset.ownerStatus);
+      else if (clearPickerSearch) {
+        const kind = clearPickerSearch.dataset.clearPickerSearch;
+        const input = $(`[data-picker-search="${kind}"]`);
+        if (input) {
+          input.value = '';
+          renderPicker(kind);
+          input.focus();
+          announce(l('trading.picker.searchCleared', 'Recherche effacée.'));
+        }
+      }
+      else if (reportTrade) toggleReported(reportTrade.dataset.reportTrade);
+      else if (blockTradeButton) blockTrade(blockTradeButton.dataset.blockTrade);
+      else if (event.target.closest('[data-undo-block]')) undoBlock();
+      else if (responseAction) updateResponseOutcome(responseAction.dataset.responseId, responseAction.dataset.responseAction);
+      else if (trackerAdvance) advanceTracker(trackerAdvance.dataset.advanceTracker);
+      else if (event.target.closest('[data-focus-counter]')) {
+        const panel = $('.counteroffer-panel', byId('trade-detail-modal'));
+        panel?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+        window.requestAnimationFrame(() => byId('counter-username')?.focus());
+      }
+      else if (event.target.closest('[data-focus-tracker]')) {
+        const tracker = $('[data-trade-tracker]', byId('trade-detail-modal'));
+        tracker?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
+        window.requestAnimationFrame(() => tracker?.focus());
+      }
       else if (event.target.closest('[data-delete-trade]')) deleteOwnedTrade();
       else if (event.target.closest('[data-share-active]') && state.activeTradeId) {
         const shareButton = event.target.closest('[data-share-active]');
@@ -1356,7 +2047,7 @@
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k' && !activeModal) {
         event.preventDefault();
         byId('trade-search').focus();
-        byId('trading-feed').scrollIntoView({ behavior: 'smooth' });
+        byId('trading-feed').scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
       }
       if (event.key === 'Escape') {
         if (activeModal?.id === 'create-trade-modal') closeCreate();
@@ -1386,17 +2077,22 @@
     });
 
     document.addEventListener('itemsouq:languagechange', () => {
+      applyPageLocale();
       renderTrades();
       renderAllPickers();
       updateDraftPanel();
       updateValueSortAvailability();
       if (activeModal?.id === 'trade-detail-modal' && state.activeTradeId) {
-        const trade = state.trades.find((item) => item.id === state.activeTradeId);
-        if (trade) {
-          byId('trade-detail-title').textContent = `${l('trading.view', 'Offre')} · ${trade.username}`;
-          byId('trade-detail-body').innerHTML = detailMarkup(trade);
-          byId('trade-detail-foot').innerHTML = detailFooter(trade);
-        }
+        const activeElement = document.activeElement;
+        const focusSelector = activeElement?.dataset.reportTrade
+          ? `[data-report-trade="${activeElement.dataset.reportTrade}"]`
+          : activeElement?.dataset.advanceTracker
+            ? `[data-advance-tracker="${activeElement.dataset.advanceTracker}"]`
+            : activeElement?.dataset.ownerStatus
+              ? '[data-owner-status]'
+              : null;
+        renderTradeDetail();
+        if (focusSelector) focusAfterRender(focusSelector, '#trade-detail-title');
       }
     });
   }
@@ -1408,12 +2104,18 @@
   function init() {
     validateDataset();
     hydrateState();
+    const calculatorHandoff = applyCalculatorHandoff();
     attachEvents();
     updateDraftPanel();
     updateValueSortAvailability();
+    applyPageLocale();
     renderAllPickers();
     renderTrades();
+    if (calculatorHandoff) {
+      showToast(l('trading.feedback.calculatorPrepared', 'Offre chargée dans le calculateur.'));
+    }
   }
 
   init();
+  document.addEventListener('DOMContentLoaded', applyPageLocale, { once: true });
 })();

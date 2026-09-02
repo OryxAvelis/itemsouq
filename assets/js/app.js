@@ -17,10 +17,17 @@
     compare: 'itemsouq:fruits:v1:compare',
     recent: 'itemsouq:fruits:v1:recent',
     preferences: 'itemsouq:fruits:v1:preferences',
+    filters: 'itemsouq:fruits:v1:filters',
+    actionHintSeen: 'itemsouq:ui:v1:action-hint-seen',
+    orderTrackers: 'itemsouq:fruits:v1:order-trackers',
+    orderSession: 'itemsouq:fruits:v1:order-session',
     tradeListings: 'itemsouq:trading:v3:listings',
     savedTrades: 'itemsouq:trading:v3:saved',
     tradeDraft: 'itemsouq:trading:v3:draft'
   };
+
+  const ORDER_STAGE_IDS = ['prepared', 'seller-contacted', 'payment-pending', 'delivered'];
+  const mobileFilterMedia = window.matchMedia('(max-width: 680px)');
 
   const rarityLabels = {
     Common: 'Commun',
@@ -67,7 +74,10 @@
     compare: [],
     recent: [],
     budget: null,
-    preferences: { payment: '', city: '' }
+    preferences: { payment: '', city: '' },
+    actionHintSeen: false,
+    orderTrackers: {},
+    orderSession: null
   };
 
   let toastTimer = null;
@@ -76,6 +86,8 @@
   let activeQuickView = null;
   let checkoutMessagePrepared = false;
   let storageWarningShown = false;
+  let filterSheetTimer = null;
+  let filterSheetClosing = false;
 
   function safeJsonRead(key, fallback) {
     try {
@@ -94,10 +106,20 @@
     } catch (error) {
       if (!storageWarningShown) {
         storageWarningShown = true;
-        showToast('Le stockage local est indisponible sur ce navigateur.', 'warning');
+        showToast(l('storage.unavailable', 'Le stockage local est indisponible sur ce navigateur.'), 'warning');
       }
       return false;
     }
+  }
+
+  function escapeAttribute(value) {
+    return String(value).replace(/[&<>'"]/g, (character) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      "'": '&#39;',
+      '"': '&quot;'
+    })[character]);
   }
 
   function sanitizeFavorites(input) {
@@ -132,6 +154,49 @@
     };
   }
 
+  function sanitizeFilters(input) {
+    const rarity = new Set(['all', 'Common', 'Uncommon', 'Rare', 'Legendary', 'Mythical']);
+    const type = new Set(['all', 'Natural', 'Elemental', 'Beast']);
+    const sort = new Set(['featured', 'value-desc', 'value-asc', 'name']);
+    const budget = Number(input?.budget);
+    return {
+      mode: input?.mode === 'permanent' ? 'permanent' : 'physical',
+      search: typeof input?.search === 'string' ? input.search.slice(0, 80) : '',
+      rarity: rarity.has(input?.rarity) ? input.rarity : 'all',
+      type: type.has(input?.type) ? input.type : 'all',
+      sort: sort.has(input?.sort) ? input.sort : 'featured',
+      favoriteOnly: input?.favoriteOnly === true,
+      budget: Number.isFinite(budget) && budget >= 10 && budget <= 5000 ? budget : null
+    };
+  }
+
+  function sanitizeOrderTrackers(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
+    const clean = {};
+    Object.entries(input).slice(-16).forEach(([reference, record]) => {
+      if (!/^ISQ-\d{4,6}$/.test(reference) || !record || typeof record !== 'object') return;
+      const stage = ORDER_STAGE_IDS.includes(record.stage) ? record.stage : '';
+      if (!stage) return;
+      const updated = new Date(record.updatedAt);
+      clean[reference] = {
+        stage,
+        updatedAt: Number.isNaN(updated.getTime()) ? new Date(0).toISOString() : updated.toISOString()
+      };
+    });
+    return clean;
+  }
+
+  function sanitizeOrderSession(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
+    const reference = typeof input.reference === 'string' && /^ISQ-\d{4,6}$/.test(input.reference)
+      ? input.reference
+      : '';
+    const signature = typeof input.signature === 'string' ? input.signature.slice(0, 500) : '';
+    const createdAt = new Date(input.createdAt);
+    if (!reference || !signature || Number.isNaN(createdAt.getTime())) return null;
+    return { reference, signature, createdAt: createdAt.toISOString() };
+  }
+
   function sanitizeCart(input) {
     if (!Array.isArray(input)) return [];
 
@@ -159,16 +224,25 @@
   }
 
   function hydrateState() {
+    const savedFilters = sanitizeFilters(safeJsonRead(STORAGE.filters, {}));
+    Object.assign(state, savedFilters);
+    if (state.budget !== null && state.budget >= budgetCeiling(state.mode)) state.budget = null;
     state.favorites = new Set(sanitizeFavorites(safeJsonRead(STORAGE.favorites, [])));
     state.cart = sanitizeCart(safeJsonRead(STORAGE.cart, []));
     state.compare = sanitizeCompare(safeJsonRead(STORAGE.compare, []));
     state.recent = sanitizeIdList(safeJsonRead(STORAGE.recent, []));
     state.preferences = sanitizePreferences(safeJsonRead(STORAGE.preferences, {}));
+    state.actionHintSeen = safeJsonRead(STORAGE.actionHintSeen, false) === true;
+    state.orderTrackers = sanitizeOrderTrackers(safeJsonRead(STORAGE.orderTrackers, {}));
+    state.orderSession = sanitizeOrderSession(safeJsonRead(STORAGE.orderSession, null));
     persistCart();
     persistFavorites();
     persistCompare();
     persistRecent();
     persistPreferences();
+    persistFilters();
+    persistOrderTrackers();
+    persistOrderSession();
   }
 
   function persistCart() {
@@ -189,6 +263,30 @@
 
   function persistPreferences() {
     safeJsonWrite(STORAGE.preferences, state.preferences);
+  }
+
+  function persistFilters() {
+    safeJsonWrite(STORAGE.filters, {
+      mode: state.mode,
+      search: state.search,
+      rarity: state.rarity,
+      type: state.type,
+      sort: state.sort,
+      favoriteOnly: state.favoriteOnly,
+      budget: state.budget
+    });
+  }
+
+  function persistOrderTrackers() {
+    const entries = Object.entries(state.orderTrackers)
+      .sort(([, a], [, b]) => String(a.updatedAt).localeCompare(String(b.updatedAt)))
+      .slice(-12);
+    state.orderTrackers = Object.fromEntries(entries);
+    safeJsonWrite(STORAGE.orderTrackers, state.orderTrackers);
+  }
+
+  function persistOrderSession() {
+    safeJsonWrite(STORAGE.orderSession, state.orderSession);
   }
 
   function roundToFive(value) {
@@ -213,7 +311,7 @@
   }
 
   function formatMad(value) {
-    if (!Number.isFinite(value) || value < 0) return 'Sur demande';
+    if (!Number.isFinite(value) || value < 0) return l('price.onRequest', 'Sur demande');
     return `${new Intl.NumberFormat('fr-MA', { maximumFractionDigits: 0 }).format(value)} MAD`;
   }
 
@@ -229,7 +327,10 @@
 
   function prepareStaticWhatsAppLinks() {
     $$('[data-whatsapp-message]').forEach((link) => {
-      link.href = whatsappUrl(link.dataset.whatsappMessage || '');
+      const message = link.dataset.whatsappI18n
+        ? l(link.dataset.whatsappI18n, link.dataset.whatsappMessage || '')
+        : (link.dataset.whatsappMessage || '');
+      link.href = whatsappUrl(message);
     });
   }
 
@@ -308,20 +409,30 @@
     const mode = modeCopy(state.mode);
     const price = demoPrice(fruit, state.mode);
     const stock = stockFor(fruit, state.mode);
-    const quickMessage = `Salam Itemsouq, je veux vérifier ${fruit.name} (${mode.long}) — prix démo ${formatMad(price)}.`;
+    const quickMessage = l(
+      'whatsapp.fruitInquiry',
+      `Salam Itemsouq, je veux vérifier ${fruit.name} (${mode.long}) — prix démo ${formatMad(price)}.`,
+      { fruit: fruit.name, mode: mode.long, price: formatMad(price) }
+    );
     const quickLabel = sellerWhatsAppNumber
-      ? `Demander ${fruit.name} au vendeur sur WhatsApp`
-      : `Préparer une demande pour ${fruit.name} dans WhatsApp`;
+      ? l('aria.askSellerWhatsApp', `Demander ${fruit.name} au vendeur sur WhatsApp`, { fruit: fruit.name })
+      : l('aria.prepareFruitWhatsApp', `Préparer une demande pour ${fruit.name} dans WhatsApp`, { fruit: fruit.name });
+    const compareLabel = compared
+      ? l('aria.removeFromCompare', `Retirer ${fruit.name} de la comparaison`, { fruit: fruit.name })
+      : l('aria.addToCompare', `Ajouter ${fruit.name} à la comparaison`, { fruit: fruit.name });
+    const favoriteLabel = favorite
+      ? l('aria.removeFavorite', `Retirer ${fruit.name} des favoris`, { fruit: fruit.name })
+      : l('aria.addFavorite', `Ajouter ${fruit.name} aux favoris`, { fruit: fruit.name });
 
     return `
       <article class="fruit-card" id="fruit-${id}" data-fruit-id="${id}">
         <div class="fruit-card-head">
           <span class="rarity-tag ${classes.tag}">${rarityLabel(fruit.rarity)}</span>
           <span class="fruit-card-head-actions">
-            <button class="compare-button${compared ? ' active' : ''}" type="button" data-compare="${id}" data-mode="${state.mode}" aria-label="${compared ? 'Retirer' : 'Ajouter'} ${fruit.name} ${compared ? 'de la' : 'à la'} comparaison" aria-pressed="${compared}">
+            <button class="compare-button${compared ? ' active' : ''}" type="button" data-compare="${id}" data-mode="${state.mode}" aria-label="${escapeAttribute(compareLabel)}" title="${escapeAttribute(compareLabel)}" aria-pressed="${compared}">
               <i class="fa-solid fa-code-compare" aria-hidden="true"></i>
             </button>
-            <button class="favorite-button${favorite ? ' active' : ''}" type="button" data-favorite="${id}" aria-label="${favorite ? 'Retirer' : 'Ajouter'} ${fruit.name} ${favorite ? 'des' : 'aux'} favoris" aria-pressed="${favorite}">
+            <button class="favorite-button${favorite ? ' active' : ''}" type="button" data-favorite="${id}" aria-label="${escapeAttribute(favoriteLabel)}" title="${escapeAttribute(favoriteLabel)}" aria-pressed="${favorite}">
               <i class="fa-${favorite ? 'solid' : 'regular'} fa-heart" aria-hidden="true"></i>
             </button>
           </span>
@@ -332,26 +443,28 @@
             <span aria-hidden="true">${initials(fruit.name)}</span>
           </div>
           <span class="type-badge"><i class="fa-solid ${typeIcon(fruit.type)}" aria-hidden="true"></i>${typeLabel(fruit.type)}</span>
-          <button class="fruit-quick-view" type="button" data-quick-view="${id}" data-mode="${state.mode}" aria-label="Voir les détails de ${fruit.name}"><i class="fa-solid fa-eye" aria-hidden="true"></i> ${l('card.preview', 'Aperçu')}</button>
+          <button class="fruit-quick-view" type="button" data-quick-view="${id}" data-mode="${state.mode}" aria-label="${l('aria.viewFruitDetails', `Voir les détails de ${fruit.name}`, { fruit: fruit.name })}"><i class="fa-solid fa-eye" aria-hidden="true"></i> ${l('card.preview', 'Aperçu')}</button>
         </div>
         <div class="fruit-content">
           <div class="fruit-title-row">
             <h3>${fruit.name}</h3>
+          </div>
+          <div class="fruit-essential-meta">
+            <span class="mode-label"><i class="fa-solid ${mode.icon}" aria-hidden="true"></i>${mode.short}</span>
             <span class="stock-chip">${l('card.stock', `Stock démo ${stock}`, { count: stock })}</span>
+          </div>
+          <div class="card-price">
+            <span>${l('card.demoPrice', 'Prix démo Itemsouq')}<strong>${formatMad(price)}</strong></span>
           </div>
           <div class="official-value">
             <span>${l('card.wiki', 'Valeur wiki')}</span>
             <strong>${officialValue(fruit, state.mode)}</strong>
           </div>
-          <div class="card-price">
-            <span>${l('card.demoPrice', 'Prix démo Itemsouq')}<strong>${formatMad(price)}</strong></span>
-            <span class="mode-label"><i class="fa-solid ${mode.icon}" aria-hidden="true"></i>${mode.short}</span>
-          </div>
           <div class="card-actions">
             <button class="add-cart-button" type="button" data-add="${id}" data-mode="${state.mode}">
               <i class="fa-solid fa-plus" aria-hidden="true"></i> ${l('card.add', 'Ajouter')}
             </button>
-            <a class="quick-whatsapp" href="${whatsappUrl(quickMessage)}" target="_blank" rel="noopener" aria-label="${quickLabel}">
+            <a class="quick-whatsapp" href="${whatsappUrl(quickMessage)}" target="_blank" rel="noopener" aria-label="${escapeAttribute(quickLabel)}" title="${escapeAttribute(quickLabel)}">
               <i class="fa-brands fa-whatsapp" aria-hidden="true"></i>
             </a>
           </div>
@@ -367,8 +480,9 @@
     const clearFilters = byId('clear-filters');
     const results = filteredFruits();
     const visible = results.slice(0, state.visible);
-    const hasFilters = Boolean(state.search.trim()) || state.rarity !== 'all' || state.type !== 'all' || state.favoriteOnly || state.budget !== null;
+    const hasFilters = Boolean(state.search.trim()) || state.rarity !== 'all' || state.type !== 'all' || state.sort !== 'featured' || state.favoriteOnly || state.budget !== null;
 
+    grid.setAttribute('aria-busy', 'true');
     grid.innerHTML = visible.map(createFruitCard).join('');
     grid.hidden = visible.length === 0;
     empty.hidden = visible.length !== 0;
@@ -376,12 +490,15 @@
     clearFilters.hidden = !hasFilters;
     wireFruitImageFallbacks(grid);
 
-    const favoriteSuffix = state.favoriteOnly ? ' favoris' : '';
-    byId('results-count').textContent = `${results.length} fruit${results.length > 1 ? 's' : ''}${favoriteSuffix} disponible${results.length > 1 ? 's' : ''}`;
+    byId('results-count').textContent = state.favoriteOnly
+      ? l('results.favoriteCount', `${results.length} fruit${results.length > 1 ? 's' : ''} favori${results.length > 1 ? 's' : ''} disponible${results.length > 1 ? 's' : ''}`, { count: results.length })
+      : l('results.count', `${results.length} fruit${results.length > 1 ? 's' : ''} disponible${results.length > 1 ? 's' : ''}`, { count: results.length });
+    renderActiveFilterUi(results.length);
     updateBudgetUi();
     updateFavoriteTrigger();
     renderCompareTray();
     updateSouqIndicators();
+    window.requestAnimationFrame(() => grid.setAttribute('aria-busy', 'false'));
   }
 
   function updateBudgetUi() {
@@ -404,6 +521,116 @@
     });
   }
 
+  function syncFilterControls() {
+    byId('fruit-search').value = state.search;
+    byId('rarity-filter').value = state.rarity;
+    byId('type-filter').value = state.type;
+    byId('sort-fruits').value = state.sort;
+    $$('.variant-option').forEach((button) => {
+      const active = button.dataset.mode === state.mode;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
+    updateBudgetUi();
+  }
+
+  function activeFilterDescriptors() {
+    const descriptors = [];
+    if (state.rarity !== 'all') {
+      descriptors.push({
+        key: 'rarity',
+        label: l('filter.chipRarity', `Rareté : ${rarityLabel(state.rarity)}`, { value: rarityLabel(state.rarity) })
+      });
+    }
+    if (state.type !== 'all') {
+      descriptors.push({
+        key: 'type',
+        label: l('filter.chipType', `Type : ${typeLabel(state.type)}`, { value: typeLabel(state.type) })
+      });
+    }
+    if (state.budget !== null) {
+      descriptors.push({
+        key: 'budget',
+        label: l('filter.chipBudget', `Budget : ${formatMad(state.budget)}`, { value: formatMad(state.budget) })
+      });
+    }
+    if (state.favoriteOnly) {
+      descriptors.push({ key: 'favorites', label: l('filter.chipFavorites', 'Favoris seulement') });
+    }
+    if (state.sort !== 'featured') {
+      const sortLabels = {
+        'value-desc': l('sort.valueDesc', 'Valeur décroissante'),
+        'value-asc': l('sort.valueAsc', 'Valeur croissante'),
+        name: l('sort.name', 'Nom A–Z')
+      };
+      descriptors.push({
+        key: 'sort',
+        label: l('filter.chipSort', `Tri : ${sortLabels[state.sort]}`, { value: sortLabels[state.sort] })
+      });
+    }
+    return descriptors;
+  }
+
+  function renderActiveFilterUi(resultCount = filteredFruits().length) {
+    const chips = byId('active-filter-chips');
+    const count = byId('mobile-filter-count');
+    const doneLabel = byId('filter-sheet-done-label');
+    const descriptors = activeFilterDescriptors();
+    if (chips) {
+      chips.innerHTML = descriptors.map((filter) => {
+        const removeLabel = l('aria.removeFilter', `Retirer le filtre ${filter.label}`, { filter: filter.label });
+        return `<button class="active-filter-chip" type="button" data-clear-filter="${filter.key}" aria-label="${escapeAttribute(removeLabel)}" title="${escapeAttribute(removeLabel)}"><span>${filter.label}</span><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`;
+      }).join('');
+      chips.hidden = descriptors.length === 0;
+    }
+    if (count) {
+      count.textContent = String(descriptors.length);
+      count.hidden = descriptors.length === 0;
+      count.setAttribute('aria-label', l('filter.activeCount', `${descriptors.length} filtre(s) actif(s)`, { count: descriptors.length }));
+    }
+    if (doneLabel) {
+      doneLabel.textContent = l('filter.showResults', `Voir les résultats (${resultCount})`, { count: resultCount });
+    }
+  }
+
+  function clearSingleFilter(key) {
+    if (key === 'rarity') state.rarity = 'all';
+    else if (key === 'type') state.type = 'all';
+    else if (key === 'budget') state.budget = null;
+    else if (key === 'favorites') state.favoriteOnly = false;
+    else if (key === 'sort') state.sort = 'featured';
+    else return;
+    state.visible = 12;
+    persistFilters();
+    syncFilterControls();
+    renderCatalogue();
+  }
+
+  function resetSecondaryFilters() {
+    state.rarity = 'all';
+    state.type = 'all';
+    state.sort = 'featured';
+    state.favoriteOnly = false;
+    state.budget = null;
+    state.visible = 12;
+    persistFilters();
+    syncFilterControls();
+    renderCatalogue();
+  }
+
+  function dismissActionHint() {
+    state.actionHintSeen = true;
+    safeJsonWrite(STORAGE.actionHintSeen, true);
+    const hint = byId('mobile-action-hint');
+    if (hint) hint.hidden = true;
+  }
+
+  function syncActionHint() {
+    const hint = byId('mobile-action-hint');
+    if (!hint) return;
+    hint.hidden = state.actionHintSeen || !mobileFilterMedia.matches;
+  }
+
   function resetFilters(options = {}) {
     state.search = '';
     state.rarity = 'all';
@@ -411,13 +638,11 @@
     state.favoriteOnly = false;
     state.budget = null;
     state.visible = 12;
-    byId('fruit-search').value = '';
-    byId('rarity-filter').value = 'all';
-    byId('type-filter').value = 'all';
     if (!options.keepSort) {
       state.sort = 'featured';
-      byId('sort-fruits').value = 'featured';
     }
+    persistFilters();
+    syncFilterControls();
     renderCatalogue();
   }
 
@@ -431,18 +656,20 @@
       button.classList.toggle('active', active);
       button.setAttribute('aria-pressed', String(active));
     });
+    persistFilters();
     renderCatalogue();
   }
 
   function toggleFavorite(id) {
     if (!fruitById.has(id)) return;
+    dismissActionHint();
     const fruit = fruitById.get(id);
     if (state.favorites.has(id)) {
       state.favorites.delete(id);
-      showToast(`${fruit.name} retiré des favoris.`);
+      showToast(l('favorite.removed', `${fruit.name} retiré des favoris.`, { fruit: fruit.name }));
     } else {
       state.favorites.add(id);
-      showToast(`${fruit.name} ajouté aux favoris.`);
+      showToast(l('favorite.added', `${fruit.name} ajouté aux favoris.`, { fruit: fruit.name }));
     }
     persistFavorites();
     renderCatalogue();
@@ -461,7 +688,9 @@
     countElement.hidden = count === 0;
     trigger.classList.toggle('active', state.favoriteOnly);
     trigger.setAttribute('aria-pressed', String(state.favoriteOnly));
-    trigger.setAttribute('aria-label', state.favoriteOnly ? 'Afficher tous les fruits' : `Afficher mes favoris (${count})`);
+    trigger.setAttribute('aria-label', state.favoriteOnly
+      ? l('aria.showAllFruits', 'Afficher tous les fruits')
+      : l('aria.showFavoritesCount', `Afficher mes favoris (${count})`, { count }));
     const icon = $('i', trigger);
     icon.className = `fa-${state.favoriteOnly ? 'solid' : 'regular'} fa-heart`;
   }
@@ -478,12 +707,12 @@
     if (mobileSouqCount) {
       mobileSouqCount.textContent = String(state.favorites.size);
       mobileSouqCount.hidden = state.favorites.size === 0;
-      mobileSouqCount.setAttribute('aria-label', `${state.favorites.size} favori${state.favorites.size > 1 ? 's' : ''}`);
+      mobileSouqCount.setAttribute('aria-label', l('aria.favoriteCount', `${state.favorites.size} favori${state.favorites.size > 1 ? 's' : ''}`, { count: state.favorites.size }));
     }
     if (mobileCartCount) {
       mobileCartCount.textContent = String(cartQuantity());
       mobileCartCount.hidden = cartQuantity() === 0;
-      mobileCartCount.setAttribute('aria-label', `${cartQuantity()} article${cartQuantity() > 1 ? 's' : ''}`);
+      mobileCartCount.setAttribute('aria-label', l('aria.articleCount', `${cartQuantity()} article${cartQuantity() > 1 ? 's' : ''}`, { count: cartQuantity() }));
     }
   }
 
@@ -500,16 +729,17 @@
 
   function toggleCompare(id, mode, restoreFocus = true) {
     if (!fruitById.has(id) || !['physical', 'permanent'].includes(mode)) return;
+    dismissActionHint();
     const existingIndex = state.compare.findIndex((entry) => entry.id === id && entry.mode === mode);
     if (existingIndex >= 0) {
       state.compare.splice(existingIndex, 1);
-      showToast(`${fruitById.get(id).name} retiré de la comparaison.`);
+      showToast(l('compare.removed', `${fruitById.get(id).name} retiré de la comparaison.`, { fruit: fruitById.get(id).name }));
     } else if (state.compare.length >= 3) {
-      showToast('Tu peux comparer au maximum 3 fruits.', 'warning');
+      showToast(l('compare.max', 'Tu peux comparer au maximum 3 fruits.'), 'warning');
       return;
     } else {
       state.compare.push({ id, mode });
-      showToast(`${fruitById.get(id).name} ajouté à la comparaison.`);
+      showToast(l('compare.added', `${fruitById.get(id).name} ajouté à la comparaison.`, { fruit: fruitById.get(id).name }));
     }
     persistCompare();
     renderCatalogue();
@@ -530,15 +760,17 @@
     const help = byId('compare-tray-help');
     if (!tray || !items || !open || !help) return;
     tray.hidden = state.compare.length === 0;
+    document.body.classList.toggle('compare-active', state.compare.length > 0);
     items.innerHTML = state.compare.map((entry) => {
       const fruit = fruitById.get(entry.id);
-      return `<span class="compare-chip"><img src="${fruitImagePath(fruit)}" alt="" width="512" height="512"><strong>${fruit.name}</strong><button type="button" data-remove-compare="${entry.id}" data-mode="${entry.mode}" aria-label="Retirer ${fruit.name} ${modeCopy(entry.mode).short} de la comparaison"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></span>`;
+      const removeLabel = l('aria.removeModeFromCompare', `Retirer ${fruit.name} ${modeCopy(entry.mode).short} de la comparaison`, { fruit: fruit.name, mode: modeCopy(entry.mode).short });
+      return `<span class="compare-chip"><img src="${fruitImagePath(fruit)}" alt="" width="512" height="512"><strong>${fruit.name}</strong><button type="button" data-remove-compare="${entry.id}" data-mode="${entry.mode}" aria-label="${escapeAttribute(removeLabel)}" title="${escapeAttribute(removeLabel)}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></span>`;
     }).join('') + Array.from({ length: Math.max(0, 3 - state.compare.length) }, () => '<span class="compare-slot" aria-hidden="true"><i class="fa-solid fa-plus"></i></span>').join('');
     const canOpen = state.compare.length >= 2;
     open.disabled = !canOpen;
     $('span', open).textContent = l('compare.open', `Comparer (${state.compare.length})`, { count: state.compare.length });
     help.textContent = canOpen
-      ? `${state.compare.length} fruit${state.compare.length > 1 ? 's' : ''} sur 3 sélectionnés`
+      ? l('compare.selectedCount', `${state.compare.length} fruit${state.compare.length > 1 ? 's' : ''} sur 3 sélectionnés`, { count: state.compare.length })
       : l('compare.needTwo', 'Ajoute au moins 2 fruits pour comparer.');
     help.setAttribute('aria-live', 'polite');
   }
@@ -549,15 +781,19 @@
     const price = demoPrice(fruit, mode);
     const stock = stockFor(fruit, mode);
     const compared = isCompared(id, mode);
+    const compareLabel = compared
+      ? l('aria.removeFromComparison', 'Retirer de la comparaison')
+      : l('aria.addToComparison', 'Ajouter à la comparaison');
+    const shareLabel = l('quick.shareFruit', `Partager ${fruit.name}`, { fruit: fruit.name });
     return `
       <div class="quick-view-visual ${classes.visual}">
-        <img data-fruit-image src="${fruitImagePath(fruit)}" alt="Illustration du fruit ${fruit.name}" width="512" height="512">
+        <img data-fruit-image src="${fruitImagePath(fruit)}" alt="${l('aria.fruitIllustration', `Illustration du fruit ${fruit.name}`, { fruit: fruit.name })}" width="512" height="512">
       </div>
       <div class="quick-view-details">
         <span class="rarity-tag ${classes.tag}">${rarityLabel(fruit.rarity)}</span>
         <h3>${fruit.name}</h3>
-        <p>${typeLabel(fruit.type)} · ${l('card.stock', `Stock démo ${stock}`, { count: stock })} · ${l('mode.physicalLong', 'Fruit physique')} ou ${l('mode.permanentLong', 'fruit permanent').toLowerCase()}.</p>
-        <div class="quick-view-mode" role="group" aria-label="Format de ${fruit.name}">
+        <p>${l('quick.description', `${typeLabel(fruit.type)} · ${l('card.stock', `Stock démo ${stock}`, { count: stock })} · ${l('mode.physicalLong', 'Fruit physique')} ou ${l('mode.permanentLong', 'fruit permanent').toLowerCase()}.`, { type: typeLabel(fruit.type), stock: l('card.stock', `Stock démo ${stock}`, { count: stock }), physical: l('mode.physicalLong', 'Fruit physique'), permanent: l('mode.permanentLong', 'fruit permanent').toLowerCase() })}</p>
+        <div class="quick-view-mode" role="group" aria-label="${l('aria.fruitFormatNamed', `Format de ${fruit.name}`, { fruit: fruit.name })}">
           <button type="button" class="${mode === 'physical' ? 'active' : ''}" data-quick-mode="physical" aria-pressed="${mode === 'physical'}"><i class="fa-solid fa-box-open" aria-hidden="true"></i> ${l('mode.physical', 'Physique')}</button>
           <button type="button" class="${mode === 'permanent' ? 'active' : ''}" data-quick-mode="permanent" aria-pressed="${mode === 'permanent'}"><i class="fa-solid fa-infinity" aria-hidden="true"></i> ${l('mode.permanent', 'Permanent')}</button>
         </div>
@@ -565,13 +801,13 @@
           <div class="quick-fact"><span>${l('card.wiki', 'Valeur wiki')}</span><strong>${officialValue(fruit, mode)}</strong></div>
           <div class="quick-fact"><span>${l('fact.type', 'Type')}</span><strong><i class="fa-solid ${typeIcon(fruit.type)}" aria-hidden="true"></i> ${typeLabel(fruit.type)}</strong></div>
           <div class="quick-fact"><span>${l('fact.rarity', 'Rareté')}</span><strong>${rarityLabel(fruit.rarity)}</strong></div>
-          <div class="quick-fact"><span>${l('fact.stock', 'Stock démo')}</span><strong>${stock} en stock</strong></div>
+          <div class="quick-fact"><span>${l('fact.stock', 'Stock démo')}</span><strong>${l('stock.availableCount', `${stock} en stock`, { count: stock })}</strong></div>
         </div>
-        <div class="quick-view-price"><span>${l('card.demoPrice', 'Prix démo Itemsouq')}<strong>${formatMad(price)}</strong></span><span>À confirmer sur WhatsApp</span></div>
+        <div class="quick-view-price"><span>${l('card.demoPrice', 'Prix démo Itemsouq')}<strong>${formatMad(price)}</strong></span><span>${l('price.confirmWhatsApp', 'À confirmer sur WhatsApp')}</span></div>
         <div class="quick-view-actions">
           <button class="btn btn-primary" type="button" data-quick-add="${id}" data-mode="${mode}"><i class="fa-solid fa-plus" aria-hidden="true"></i> <span>${l('quick.add', 'Ajouter à la commande')}</span></button>
-          <button class="quick-compare${compared ? ' active' : ''}" type="button" data-quick-compare="${id}" data-mode="${mode}" aria-label="${compared ? 'Retirer de' : 'Ajouter à'} la comparaison" aria-pressed="${compared}"><i class="fa-solid fa-code-compare" aria-hidden="true"></i></button>
-          <button class="quick-share" type="button" data-share-fruit="${id}" data-mode="${mode}" aria-label="${l('quick.share', 'Partager')} ${fruit.name}"><i class="fa-solid fa-share-nodes" aria-hidden="true"></i></button>
+          <button class="quick-compare${compared ? ' active' : ''}" type="button" data-quick-compare="${id}" data-mode="${mode}" aria-label="${escapeAttribute(compareLabel)}" title="${escapeAttribute(compareLabel)}" aria-pressed="${compared}"><i class="fa-solid fa-code-compare" aria-hidden="true"></i></button>
+          <button class="quick-share" type="button" data-share-fruit="${id}" data-mode="${mode}" aria-label="${escapeAttribute(shareLabel)}" title="${escapeAttribute(shareLabel)}"><i class="fa-solid fa-share-nodes" aria-hidden="true"></i></button>
         </div>
       </div>`;
   }
@@ -590,19 +826,19 @@
     if (!body) return;
     const entries = state.compare.map((entry) => ({ ...entry, fruit: fruitById.get(entry.id) })).filter((entry) => entry.fruit);
     if (entries.length < 2) {
-      body.innerHTML = `<p class="souq-empty">${l('compare.needTwo', 'Ajoute au moins 2 fruits pour comparer.')}</p>`;
+      body.innerHTML = `<div class="souq-empty compare-empty"><p>${l('compare.needTwo', 'Ajoute au moins 2 fruits pour comparer.')}</p><button class="btn btn-primary" type="button" data-compare-browse><i class="fa-solid fa-plus" aria-hidden="true"></i> ${l('compare.addFruit', 'Ajouter un fruit')}</button></div>`;
       return;
     }
-    const heads = entries.map((entry) => `<th class="compare-cell" scope="col"><div class="compare-fruit-head"><button type="button" data-remove-compare="${entry.id}" data-mode="${entry.mode}" aria-label="Retirer ${entry.fruit.name} de la comparaison"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button><img src="${fruitImagePath(entry.fruit)}" alt="" width="512" height="512"><strong>${entry.fruit.name}</strong><span class="mode-label"><i class="fa-solid ${modeCopy(entry.mode).icon}" aria-hidden="true"></i>${modeCopy(entry.mode).short}</span></div></th>`).join('');
+    const heads = entries.map((entry) => `<th class="compare-cell" scope="col"><div class="compare-fruit-head"><button type="button" data-remove-compare="${entry.id}" data-mode="${entry.mode}" aria-label="${l('aria.removeFromCompare', `Retirer ${entry.fruit.name} de la comparaison`, { fruit: entry.fruit.name })}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button><img src="${fruitImagePath(entry.fruit)}" alt="" width="512" height="512"><strong>${entry.fruit.name}</strong><span class="mode-label"><i class="fa-solid ${modeCopy(entry.mode).icon}" aria-hidden="true"></i>${modeCopy(entry.mode).short}</span></div></th>`).join('');
     const row = (label, renderValue) => `<tr><th class="compare-label" scope="row">${label}</th>${entries.map((entry) => `<td class="compare-cell">${renderValue(entry)}</td>`).join('')}</tr>`;
-    body.innerHTML = `<table class="compare-grid" aria-label="Comparaison de ${entries.length} fruits" style="--compare-count:${entries.length}"><caption>Comparaison de fruits Itemsouq</caption><thead><tr><th class="compare-label" scope="col">${l('compare.fruit', 'Fruit')}</th>${heads}</tr></thead><tbody>${row(l('fact.rarity', 'Rareté'), (entry) => rarityLabel(entry.fruit.rarity))}${row(l('fact.type', 'Type'), (entry) => typeLabel(entry.fruit.type))}${row(l('card.wiki', 'Valeur wiki'), (entry) => officialValue(entry.fruit, entry.mode))}${row(l('compare.demoPrice', 'Prix démo'), (entry) => `<strong>${formatMad(demoPrice(entry.fruit, entry.mode))}</strong>`)}${row(l('fact.stock', 'Stock démo'), (entry) => String(stockFor(entry.fruit, entry.mode)))}${row(l('compare.order', 'Commande'), (entry) => `<button class="btn btn-primary" type="button" data-add="${entry.id}" data-mode="${entry.mode}"><i class="fa-solid fa-plus" aria-hidden="true"></i> ${l('card.add', 'Ajouter')}</button>`)}</tbody></table>`;
+    body.innerHTML = `<table class="compare-grid" aria-label="${l('aria.compareFruitCount', `Comparaison de ${entries.length} fruits`, { count: entries.length })}" style="--compare-count:${entries.length}"><caption>${l('compare.caption', 'Comparaison de fruits Itemsouq')}</caption><thead><tr><th class="compare-label" scope="col">${l('compare.fruit', 'Fruit')}</th>${heads}</tr></thead><tbody>${row(l('fact.rarity', 'Rareté'), (entry) => rarityLabel(entry.fruit.rarity))}${row(l('fact.type', 'Type'), (entry) => typeLabel(entry.fruit.type))}${row(l('card.wiki', 'Valeur wiki'), (entry) => officialValue(entry.fruit, entry.mode))}${row(l('compare.demoPrice', 'Prix démo'), (entry) => `<strong>${formatMad(demoPrice(entry.fruit, entry.mode))}</strong>`)}${row(l('fact.stock', 'Stock démo'), (entry) => String(stockFor(entry.fruit, entry.mode)))}${row(l('compare.order', 'Commande'), (entry) => `<button class="btn btn-primary" type="button" data-add="${entry.id}" data-mode="${entry.mode}"><i class="fa-solid fa-plus" aria-hidden="true"></i> ${l('card.add', 'Ajouter')}</button>`)}</tbody></table>`;
   }
 
   function souqMiniMarkup(ids, emptyCopy) {
-    if (!ids.length) return `<p class="souq-empty">${emptyCopy}</p>`;
+    if (!ids.length) return `<div class="souq-empty"><p>${emptyCopy}</p><button class="btn btn-secondary" type="button" data-souq-browse><i class="fa-solid fa-store" aria-hidden="true"></i> ${l('empty.browseFruits', 'Parcourir les fruits')}</button></div>`;
     return ids.slice(0, 6).map((id) => {
       const fruit = fruitById.get(id);
-      return `<button class="souq-mini-fruit" type="button" data-quick-view="${id}" data-mode="${state.mode}" aria-label="Voir ${fruit.name}"><img src="${fruitImagePath(fruit)}" alt="" width="512" height="512"><strong>${fruit.name}</strong></button>`;
+      return `<button class="souq-mini-fruit" type="button" data-quick-view="${id}" data-mode="${state.mode}" aria-label="${l('aria.viewFruit', `Voir ${fruit.name}`, { fruit: fruit.name })}"><img src="${fruitImagePath(fruit)}" alt="" width="512" height="512"><strong>${fruit.name}</strong></button>`;
     }).join('');
   }
 
@@ -622,7 +858,7 @@
       <button class="souq-stat" type="button" data-view-favorites><i class="fa-solid fa-heart" aria-hidden="true"></i><strong>${state.favorites.size}</strong><span>${l('souq.favorites', 'Favoris')}</span></button>
       <button class="souq-stat" type="button" data-souq-cart><i class="fa-solid fa-bag-shopping" aria-hidden="true"></i><strong>${cartQuantity()}</strong><span>${l('souq.cart', 'Dans la commande')} · ${formatMad(cartTotal())}</span></button>
       <a class="souq-stat" href="trading.html#trading-feed"><i class="fa-solid fa-bookmark" aria-hidden="true"></i><strong>${savedTradeCount}</strong><span>${l('souq.savedTrades', 'Trades sauvegardés')}</span></a>
-      <a class="souq-stat" href="trading.html#create"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i><strong>${hasDraft ? 1 : 0}</strong><span>${hasDraft ? 'Brouillon local' : 'Aucun brouillon'}</span></a>`;
+      <a class="souq-stat" href="trading.html#create"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i><strong>${hasDraft ? 1 : 0}</strong><span>${hasDraft ? l('souq.localDraft', 'Brouillon local') : l('souq.noDraft', 'Aucun brouillon')}</span></a>`;
     byId('souq-recent').innerHTML = souqMiniMarkup(state.recent, l('souq.emptyRecent', "Ouvre l’aperçu d’un fruit pour le retrouver ici."));
     byId('souq-favorites').innerHTML = souqMiniMarkup([...state.favorites], l('souq.emptyFavorites', 'Ajoute des fruits aux favoris pour les retrouver ici.'));
     byId('souq-payment').value = state.preferences.payment;
@@ -632,11 +868,16 @@
   async function shareFruit(id, mode) {
     const fruit = fruitById.get(id);
     if (!fruit) return;
-    const text = `${fruit.name} · ${modeCopy(mode).long} · ${formatMad(demoPrice(fruit, mode))} (prix démo à confirmer) — Itemsouq`;
+    const text = l(
+      'share.fruitSummary',
+      `${fruit.name} · ${modeCopy(mode).long} · ${formatMad(demoPrice(fruit, mode))} (prix démo à confirmer) — Itemsouq`,
+      { fruit: fruit.name, mode: modeCopy(mode).long, price: formatMad(demoPrice(fruit, mode)) }
+    );
     const sharedUrl = new URL(window.location.href);
     sharedUrl.hash = '';
     sharedUrl.searchParams.set('fruit', id);
     sharedUrl.searchParams.set('mode', mode);
+    sharedUrl.searchParams.set('lang', i18n?.getLanguage?.() || 'fr');
     const url = sharedUrl.toString();
     if (typeof navigator.share === 'function') {
       try {
@@ -665,7 +906,7 @@
       showToast(l('share.copied', 'Le résumé a été copié.'));
     } catch (error) {
       if (error?.name === 'AbortError') return;
-      showToast('Le partage est indisponible. Réessaie depuis WhatsApp.', 'warning');
+      showToast(l('share.unavailable', 'Le partage est indisponible. Réessaie depuis WhatsApp.'), 'warning');
     }
   }
 
@@ -683,7 +924,7 @@
 
     if (existing) {
       if (existing.quantity >= stock) {
-        showToast(`Quantité maximale atteinte pour ${fruit.name}.`, 'warning');
+        showToast(l('cart.maxQuantity', `Quantité maximale atteinte pour ${fruit.name}.`, { fruit: fruit.name }), 'warning');
         return;
       }
       existing.quantity += 1;
@@ -693,7 +934,7 @@
 
     persistCart();
     updateCartUi();
-    showToast(`${fruit.name} ${mode === 'permanent' ? 'permanent' : 'physique'} ajouté à ta commande.`);
+    showToast(l('cart.added', `${fruit.name} ${modeCopy(mode).short.toLowerCase()} ajouté à ta commande.`, { fruit: fruit.name, mode: modeCopy(mode).short.toLowerCase() }));
   }
 
   function changeQuantity(id, mode, delta) {
@@ -751,14 +992,14 @@
         <div class="cart-line-main">
           <h3>${fruit.name}</h3>
           <p>${copy.long} · ${officialValue(fruit, line.mode)}</p>
-          <strong class="cart-line-price">${formatMad(price)} / unité</strong>
-          <div class="cart-quantity" aria-label="Quantité de ${fruit.name}">
-            <button type="button" data-quantity="-1" data-id="${line.id}" data-mode="${line.mode}" aria-label="Diminuer ${fruit.name}"><i class="fa-solid fa-minus" aria-hidden="true"></i></button>
+          <strong class="cart-line-price">${formatMad(price)} / ${l('cart.unit', 'unité')}</strong>
+          <div class="cart-quantity" aria-label="${l('aria.fruitQuantity', `Quantité de ${fruit.name}`, { fruit: fruit.name })}">
+            <button type="button" data-quantity="-1" data-id="${line.id}" data-mode="${line.mode}" aria-label="${l('aria.decreaseFruit', `Diminuer ${fruit.name}`, { fruit: fruit.name })}"><i class="fa-solid fa-minus" aria-hidden="true"></i></button>
             <span>${line.quantity}</span>
-            <button type="button" data-quantity="1" data-id="${line.id}" data-mode="${line.mode}" aria-label="Augmenter ${fruit.name}"><i class="fa-solid fa-plus" aria-hidden="true"></i></button>
+            <button type="button" data-quantity="1" data-id="${line.id}" data-mode="${line.mode}" aria-label="${l('aria.increaseFruit', `Augmenter ${fruit.name}`, { fruit: fruit.name })}"><i class="fa-solid fa-plus" aria-hidden="true"></i></button>
           </div>
         </div>
-        <button class="cart-line-remove" type="button" data-remove="${line.id}" data-mode="${line.mode}" aria-label="Retirer ${fruit.name}"><i class="fa-solid fa-trash-can" aria-hidden="true"></i></button>
+        <button class="cart-line-remove" type="button" data-remove="${line.id}" data-mode="${line.mode}" aria-label="${l('aria.removeFruit', `Retirer ${fruit.name}`, { fruit: fruit.name })}"><i class="fa-solid fa-trash-can" aria-hidden="true"></i></button>
       </article>
     `;
   }
@@ -767,7 +1008,7 @@
     const quantity = cartQuantity();
     byId('cart-count').textContent = String(quantity);
     byId('drawer-count').textContent = quantity ? `(${quantity})` : '(0)';
-    byId('cart-items').innerHTML = state.cart.map(cartLineMarkup).join('');
+    byId('cart-items').innerHTML = state.cart.map(cartLineMarkup).join('') + orderTrackerMarkup();
     byId('cart-empty').hidden = state.cart.length !== 0;
     byId('cart-footer').hidden = state.cart.length === 0;
     byId('cart-total').textContent = formatMad(cartTotal());
@@ -795,15 +1036,17 @@
     }).join('');
 
     preview.innerHTML = `
-      <div class="preview-head"><span>Résumé démo</span><span>${cartQuantity()} article${cartQuantity() > 1 ? 's' : ''}</span></div>
+      <div class="preview-head"><span>${l('order.demoSummary', 'Résumé démo')}</span><span>${l('order.articleCount', `${cartQuantity()} article${cartQuantity() > 1 ? 's' : ''}`, { count: cartQuantity() })}</span></div>
       ${rows}
-      <div class="preview-total"><span>Total indicatif</span><strong>${formatMad(cartTotal())}</strong></div>
+      <div class="preview-total"><span>${l('order.estimatedTotal', 'Total indicatif')}</span><strong>${formatMad(cartTotal())}</strong></div>
     `;
   }
 
   function showToast(message, type = 'success') {
     const toast = byId('toast');
     if (!toast) return;
+    toast.setAttribute('role', type === 'warning' ? 'alert' : 'status');
+    toast.setAttribute('aria-live', type === 'warning' ? 'assertive' : 'polite');
     const icon = $('.toast-icon i', toast);
     icon.className = type === 'warning' ? 'fa-solid fa-triangle-exclamation' : 'fa-solid fa-check';
     $('.toast-icon', toast).style.background = type === 'warning' ? '#fff4dd' : '';
@@ -835,13 +1078,18 @@
 
   function restoreOverlayFocus() {
     window.requestAnimationFrame(() => {
-      const target = [overlayReturnFocus, $('[data-mobile-souq]'), $('[data-mobile-cart]'), $('.souq-trigger'), $('.cart-trigger'), $('.brand')]
+      const target = [overlayReturnFocus, $('[data-mobile-cart]'), $('[data-mobile-souq]'), byId('mobile-filter-open'), $('.cart-trigger'), $('.souq-trigger'), $('.brand')]
         .find(isUsableFocusTarget);
       if (!target) return;
       target.focus({ preventScroll: true });
       if (document.activeElement !== target) {
         window.setTimeout(() => target.focus({ preventScroll: true }), 0);
       }
+      window.setTimeout(() => {
+        if (document.activeElement === document.body && isUsableFocusTarget(target)) {
+          target.focus({ preventScroll: true });
+        }
+      }, 140);
     });
   }
 
@@ -875,7 +1123,7 @@
   }
 
   function syncBodyOverlay() {
-    const open = ['cart-drawer', 'checkout-modal', 'souq-drawer', 'quick-view-modal', 'compare-modal']
+    const open = ['cart-drawer', 'checkout-modal', 'souq-drawer', 'quick-view-modal', 'compare-modal', 'filter-sheet']
       .some((id) => byId(id) && !byId(id).hidden);
     document.body.classList.toggle('overlay-open', open);
     setPageInert(open);
@@ -887,12 +1135,80 @@
     else if (activeOverlay === 'souq') closeSouq(restoreFocus);
     else if (activeOverlay === 'quick') closeQuickView(restoreFocus);
     else if (activeOverlay === 'compare') closeCompare(restoreFocus);
+    else if (activeOverlay === 'filter') closeFilterSheet(restoreFocus);
   }
 
   function activateOverlay(name, trigger) {
     if (activeOverlay && activeOverlay !== name) closeActiveOverlay(false);
     overlayReturnFocus = trigger || document.activeElement;
     activeOverlay = name;
+  }
+
+  function secondaryFilterElements() {
+    return [
+      byId('rarity-filter')?.closest('[data-secondary-filter]'),
+      byId('type-filter')?.closest('[data-secondary-filter]'),
+      byId('sort-fruits')?.closest('[data-secondary-filter]'),
+      $('.budget-finder[data-secondary-filter]')
+    ].filter(Boolean);
+  }
+
+  function syncFilterLayout() {
+    const sheet = byId('filter-sheet');
+    const sheetBody = byId('filter-sheet-body');
+    const filtersRow = $('.filters-row');
+    const elements = secondaryFilterElements();
+    if (!sheet || !sheetBody || !filtersRow || elements.length !== 4) return;
+
+    if (mobileFilterMedia.matches) {
+      elements.forEach((element) => sheetBody.append(element));
+    } else {
+      if (!sheet.hidden) closeFilterSheet(false, true);
+      elements.slice(0, 3).forEach((element) => filtersRow.append(element));
+      filtersRow.after(elements[3]);
+    }
+    syncActionHint();
+  }
+
+  function openFilterSheet(trigger = byId('mobile-filter-open')) {
+    if (!mobileFilterMedia.matches || filterSheetClosing) return;
+    const sheet = byId('filter-sheet');
+    const backdrop = byId('filter-sheet-backdrop');
+    if (!sheet || !backdrop) return;
+    hideToast();
+    syncFilterLayout();
+    activateOverlay('filter', trigger);
+    window.clearTimeout(filterSheetTimer);
+    sheet.hidden = false;
+    backdrop.hidden = false;
+    byId('mobile-filter-open')?.setAttribute('aria-expanded', 'true');
+    syncBodyOverlay();
+    window.requestAnimationFrame(() => {
+      sheet.classList.add('is-open');
+      backdrop.classList.add('is-open');
+      window.requestAnimationFrame(() => $('.filter-sheet-close')?.focus());
+    });
+  }
+
+  function closeFilterSheet(returnFocus = true, immediate = false) {
+    const sheet = byId('filter-sheet');
+    const backdrop = byId('filter-sheet-backdrop');
+    if (!sheet || !backdrop || sheet.hidden) return;
+    filterSheetClosing = true;
+    sheet.classList.remove('is-open');
+    backdrop.classList.remove('is-open');
+    byId('mobile-filter-open')?.setAttribute('aria-expanded', 'false');
+    const finish = () => {
+      sheet.hidden = true;
+      backdrop.hidden = true;
+      filterSheetClosing = false;
+      if (activeOverlay === 'filter') activeOverlay = null;
+      syncBodyOverlay();
+      if (returnFocus) restoreOverlayFocus();
+    };
+    window.clearTimeout(filterSheetTimer);
+    if (immediate || !returnFocus || reduceMotionPreference()) finish();
+    else filterSheetTimer = window.setTimeout(finish, 230);
   }
 
   function openCart(trigger = $('.cart-trigger')) {
@@ -919,8 +1235,9 @@
 
   function openCheckout(trigger = byId('checkout-open')) {
     if (!state.cart.length) return;
+    const returnTarget = overlayReturnFocus;
     closeCart(false);
-    activateOverlay('checkout', trigger);
+    activateOverlay('checkout', returnTarget || trigger);
     checkoutMessagePrepared = false;
     byId('checkout-modal').hidden = false;
     syncBodyOverlay();
@@ -936,6 +1253,9 @@
   function closeCheckout(returnFocus = true) {
     byId('checkout-modal').hidden = true;
     if (activeOverlay === 'checkout') activeOverlay = null;
+    if (returnFocus) {
+      overlayReturnFocus = mobileFilterMedia.matches ? $('[data-mobile-cart]') : $('.cart-trigger');
+    }
     syncBodyOverlay();
     clearFormErrors();
     if (returnFocus) restoreOverlayFocus();
@@ -1019,7 +1339,7 @@
         const label = $('small', item)?.textContent || '';
         item.setAttribute('aria-label', `${label} — ${complete ? l('order.state.complete', 'étape terminée') : current ? l('order.state.current', 'étape actuelle') : l('order.state.upcoming', 'à venir')}`);
         const badge = $('span', item);
-        if (badge) badge.innerHTML = complete ? '<i class="fa-solid fa-check" aria-hidden="true"></i><span class="sr-only">Terminée</span>' : String(itemStage);
+        if (badge) badge.innerHTML = complete ? `<i class="fa-solid fa-check" aria-hidden="true"></i><span class="sr-only">${l('order.complete', 'Terminée')}</span>` : String(itemStage);
       });
     });
   }
@@ -1044,21 +1364,21 @@
     let firstInvalid = null;
 
     if (!name) {
-      setFieldError('buyer-name', 'Entre ton prénom.');
+      setFieldError('buyer-name', l('validation.firstName', 'Entre ton prénom.'));
       firstInvalid ||= byId('buyer-name');
     }
 
     if (!username) {
-      setFieldError('roblox-username', 'Entre ton pseudo Roblox.');
+      setFieldError('roblox-username', l('validation.robloxUsername', 'Entre ton pseudo Roblox.'));
       firstInvalid ||= byId('roblox-username');
     } else if (!/^[A-Za-z0-9_]{3,30}$/.test(username)) {
-      setFieldError('roblox-username', 'Utilise 3 à 30 lettres, chiffres ou _.');
+      setFieldError('roblox-username', l('validation.robloxFormat', 'Utilise 3 à 30 lettres, chiffres ou _.'));
       firstInvalid ||= byId('roblox-username');
     }
 
     if (!payment) {
       byId('payment-fieldset').setAttribute('aria-invalid', 'true');
-      $('[data-error-for="payment"]').textContent = 'Choisis Cash Plus ou Wafacash.';
+      $('[data-error-for="payment"]').textContent = l('validation.payment', 'Choisis Cash Plus ou Wafacash.');
       firstInvalid ||= $('input[name="payment"]');
     }
 
@@ -1070,11 +1390,120 @@
     return { name, username, payment };
   }
 
+  function cartSignature() {
+    return state.cart
+      .map((line) => `${line.id}:${line.mode}:${line.quantity}`)
+      .sort()
+      .join('|');
+  }
+
+  function createOrderReference() {
+    const randomNumber = () => {
+      if (window.crypto?.getRandomValues) {
+        const value = new Uint32Array(1);
+        window.crypto.getRandomValues(value);
+        return value[0] % 1000000;
+      }
+      return Math.floor(Math.random() * 1000000);
+    };
+    for (let attempt = 0; attempt < 24; attempt += 1) {
+      const reference = `ISQ-${String(randomNumber()).padStart(6, '0')}`;
+      if (!state.orderTrackers[reference]) return reference;
+    }
+    let fallback = Date.now() % 1000000;
+    while (state.orderTrackers[`ISQ-${String(fallback).padStart(6, '0')}`]) fallback = (fallback + 1) % 1000000;
+    return `ISQ-${String(fallback).padStart(6, '0')}`;
+  }
+
   function orderReference() {
-    const seed = state.cart.map((line) => `${line.id}:${line.mode}:${line.quantity}`).join('|');
-    let hash = 0;
-    for (let index = 0; index < seed.length; index += 1) hash = ((hash << 5) - hash + seed.charCodeAt(index)) | 0;
-    return `ISQ-${String(Math.abs(hash) % 10000).padStart(4, '0')}`;
+    if (!state.cart.length) {
+      if (state.orderSession) {
+        state.orderSession = null;
+        persistOrderSession();
+      }
+      return '';
+    }
+    const signature = cartSignature();
+    if (state.orderSession?.signature !== signature) {
+      state.orderSession = {
+        reference: createOrderReference(),
+        signature,
+        createdAt: new Date().toISOString()
+      };
+      persistOrderSession();
+    }
+    return state.orderSession.reference;
+  }
+
+  function orderStageDefinitions() {
+    return [
+      { id: 'prepared', label: l('tracker.stage.prepared', 'Préparée') },
+      { id: 'seller-contacted', label: l('tracker.stage.sellerContacted', 'Vendeur contacté') },
+      { id: 'payment-pending', label: l('tracker.stage.paymentPending', 'Paiement en attente') },
+      { id: 'delivered', label: l('tracker.stage.delivered', 'Livrée') }
+    ];
+  }
+
+  function currentOrderTracker() {
+    if (!state.cart.length) {
+      if (state.orderSession) {
+        state.orderSession = null;
+        persistOrderSession();
+      }
+      return null;
+    }
+    const reference = orderReference();
+    if (!state.orderTrackers[reference]) {
+      state.orderTrackers[reference] = { stage: ORDER_STAGE_IDS[0], updatedAt: new Date().toISOString() };
+      persistOrderTrackers();
+    }
+    return { reference, ...state.orderTrackers[reference] };
+  }
+
+  function orderTrackerMarkup() {
+    const tracker = currentOrderTracker();
+    if (!tracker) return '';
+    const stages = orderStageDefinitions();
+    const currentIndex = Math.max(0, stages.findIndex((stage) => stage.id === tracker.stage));
+    const current = stages[currentIndex];
+    const next = stages[currentIndex + 1] || null;
+    const progress = stages.map((stage, index) => {
+      const complete = index < currentIndex;
+      const active = index === currentIndex;
+      const stateClass = complete ? ' complete' : active ? ' active' : '';
+      return `<li${stateClass ? ` class="${stateClass.trim()}"` : ''}${active ? ' aria-current="step"' : ''}><span>${complete ? '<i class="fa-solid fa-check" aria-hidden="true"></i>' : index + 1}</span><small>${stage.label}</small></li>`;
+    }).join('');
+    const actionLabel = next
+      ? l('tracker.next', `Passer à : ${next.label}`, { stage: next.label })
+      : l('tracker.complete', 'Commande livrée');
+    return `
+      <section class="local-order-tracker" tabindex="-1" aria-label="${escapeAttribute(l('aria.orderTracking', 'Progression de la livraison'))}">
+        <div class="local-order-tracker-head">
+          <span><small>${l('tracker.kicker', 'SUIVI LOCAL')}</small><strong>${l('tracker.reference', `Commande ${tracker.reference}`, { reference: tracker.reference })}</strong></span>
+          <em>${current.label}</em>
+        </div>
+        <p>${l('tracker.current', `Étape actuelle : ${current.label}`, { stage: current.label })}</p>
+        <ol>${progress}</ol>
+        <button class="btn btn-secondary btn-full" type="button" data-order-advance${next ? '' : ' disabled'}>${next ? '<i class="fa-solid fa-arrow-right" aria-hidden="true"></i>' : '<i class="fa-solid fa-circle-check" aria-hidden="true"></i>'}<span>${actionLabel}</span></button>
+      </section>`;
+  }
+
+  function advanceOrderTracker() {
+    const tracker = currentOrderTracker();
+    if (!tracker) return;
+    const currentIndex = ORDER_STAGE_IDS.indexOf(tracker.stage);
+    const nextStage = ORDER_STAGE_IDS[currentIndex + 1];
+    if (!nextStage) return;
+    state.orderTrackers[tracker.reference] = { stage: nextStage, updatedAt: new Date().toISOString() };
+    persistOrderTrackers();
+    updateCartUi();
+    const nextLabel = orderStageDefinitions().find((stage) => stage.id === nextStage)?.label || nextStage;
+    showToast(l('tracker.advanced', `Suivi mis à jour : ${nextLabel}.`, { stage: nextLabel }));
+    window.requestAnimationFrame(() => {
+      const advance = $('[data-order-advance]');
+      if (advance && !advance.disabled) advance.focus();
+      else $('.local-order-tracker')?.focus();
+    });
   }
 
   function buildWhatsAppMessage(details) {
@@ -1085,18 +1514,18 @@
     });
 
     return [
-      'Salam Itemsouq 👋',
-      `Je souhaite vérifier cette commande (${orderReference()}) :`,
+      l('whatsapp.checkoutGreeting', 'Salam Itemsouq 👋'),
+      l('whatsapp.checkoutIntro', `Je souhaite vérifier cette commande (${orderReference()}) :`, { reference: orderReference() }),
       '',
       ...lines,
       '',
-      `Total démo : ${formatMad(cartTotal())}`,
-      `Prénom : ${details.name}`,
-      `Pseudo Roblox : ${details.username}`,
-      `Paiement préféré : ${details.payment}`,
-      ...(state.preferences.city ? [`Ville : ${state.preferences.city}`] : []),
+      l('whatsapp.checkoutTotal', `Total démo : ${formatMad(cartTotal())}`, { total: formatMad(cartTotal()) }),
+      l('whatsapp.checkoutName', `Prénom : ${details.name}`, { name: details.name }),
+      l('whatsapp.checkoutUsername', `Pseudo Roblox : ${details.username}`, { username: details.username }),
+      l('whatsapp.checkoutPayment', `Paiement préféré : ${details.payment}`, { payment: details.payment }),
+      ...(state.preferences.city ? [l('whatsapp.checkoutCity', `Ville : ${state.preferences.city}`, { city: state.preferences.city })] : []),
       '',
-      'Merci de confirmer le stock, le prix final et la livraison en jeu avant paiement.'
+      l('whatsapp.checkoutClosing', 'Merci de confirmer le stock, le prix final et la livraison en jeu avant paiement.')
     ].join('\n');
   }
 
@@ -1120,8 +1549,8 @@
     updateOrderSteppers(3);
 
     showToast(sellerWhatsAppNumber
-      ? 'Demande préparée. Vérifie-la dans WhatsApp.'
-      : 'Message préparé. Choisis le contact Itemsouq dans WhatsApp.');
+      ? l('checkout.requestReady', 'Demande préparée. Vérifie-la dans WhatsApp.')
+      : l('checkout.messageReady', 'Message préparé. Choisis le contact Itemsouq dans WhatsApp.'));
 
     // The cart remains intact: opening WhatsApp does not mean paid or delivered.
   }
@@ -1132,7 +1561,7 @@
     const open = menu.hidden;
     menu.hidden = !open;
     trigger.setAttribute('aria-expanded', String(open));
-    trigger.setAttribute('aria-label', open ? 'Fermer le menu' : 'Ouvrir le menu');
+    trigger.setAttribute('aria-label', open ? l('aria.closeMenu', 'Fermer le menu') : l('aria.openMenu', 'Ouvrir le menu'));
     $('i', trigger).className = `fa-solid ${open ? 'fa-xmark' : 'fa-bars'}`;
   }
 
@@ -1146,7 +1575,7 @@
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     const precisePointer = window.matchMedia('(min-width: 921px) and (hover: hover) and (pointer: fine)');
     const mobileTouch = window.matchMedia('(max-width: 680px) and (pointer: coarse)');
-    const overlayNodes = [byId('cart-drawer'), byId('checkout-modal'), byId('souq-drawer'), byId('quick-view-modal'), byId('compare-modal')].filter(Boolean);
+    const overlayNodes = [byId('cart-drawer'), byId('checkout-modal'), byId('souq-drawer'), byId('quick-view-modal'), byId('compare-modal'), byId('filter-sheet')].filter(Boolean);
     const interactiveTarget = 'button, a, input, select, textarea, [role="button"]';
     let heroVisible = !('IntersectionObserver' in window);
     let cardBounds = null;
@@ -1346,24 +1775,28 @@
     byId('fruit-search').addEventListener('input', (event) => {
       state.search = event.target.value;
       state.visible = 12;
+      persistFilters();
       renderCatalogue();
     });
 
     byId('rarity-filter').addEventListener('change', (event) => {
       state.rarity = event.target.value;
       state.visible = 12;
+      persistFilters();
       renderCatalogue();
     });
 
     byId('type-filter').addEventListener('change', (event) => {
       state.type = event.target.value;
       state.visible = 12;
+      persistFilters();
       renderCatalogue();
     });
 
     byId('sort-fruits').addEventListener('change', (event) => {
       state.sort = event.target.value;
       state.visible = 12;
+      persistFilters();
       renderCatalogue();
     });
 
@@ -1372,6 +1805,7 @@
       const value = Math.min(ceiling, Math.max(10, Number(event.target.value) || ceiling));
       state.budget = value >= ceiling ? null : value;
       state.visible = 12;
+      persistFilters();
       renderCatalogue();
     });
 
@@ -1382,12 +1816,36 @@
       state.budget = preset.dataset.budget === 'all' ? null : Math.min(ceiling, Number(preset.dataset.budget));
       if (state.budget >= ceiling) state.budget = null;
       state.visible = 12;
+      persistFilters();
       renderCatalogue();
       window.requestAnimationFrame(() => preset.focus());
     });
 
     byId('clear-filters').addEventListener('click', () => resetFilters());
     byId('empty-reset').addEventListener('click', () => resetFilters());
+    byId('active-filter-chips').addEventListener('click', (event) => {
+      const chip = event.target.closest('[data-clear-filter]');
+      if (!chip) return;
+      const chips = $$('[data-clear-filter]', byId('active-filter-chips'));
+      const index = Math.max(0, chips.indexOf(chip));
+      clearSingleFilter(chip.dataset.clearFilter);
+      window.requestAnimationFrame(() => {
+        const remaining = $$('[data-clear-filter]', byId('active-filter-chips'));
+        (remaining[Math.min(index, remaining.length - 1)] || byId('mobile-filter-open'))?.focus();
+      });
+    });
+    byId('mobile-filter-open').addEventListener('click', (event) => openFilterSheet(event.currentTarget));
+    $('.filter-sheet-close').addEventListener('click', () => closeFilterSheet());
+    byId('filter-sheet-backdrop').addEventListener('click', () => closeFilterSheet());
+    byId('filter-sheet-done').addEventListener('click', () => closeFilterSheet());
+    byId('filter-sheet-reset').addEventListener('click', (event) => {
+      resetSecondaryFilters();
+      window.requestAnimationFrame(() => event.currentTarget.focus());
+    });
+    byId('mobile-action-hint-dismiss').addEventListener('click', dismissActionHint);
+    const handleFilterBreakpoint = () => syncFilterLayout();
+    if (typeof mobileFilterMedia.addEventListener === 'function') mobileFilterMedia.addEventListener('change', handleFilterBreakpoint);
+    else if (typeof mobileFilterMedia.addListener === 'function') mobileFilterMedia.addListener(handleFilterBreakpoint);
     byId('load-more').addEventListener('click', () => {
       state.visible += 12;
       renderCatalogue();
@@ -1406,14 +1864,15 @@
 
     $('.favorites-trigger').addEventListener('click', () => {
       if (!state.favorites.size && !state.favoriteOnly) {
-        showToast('Ajoute un cœur à un fruit pour le retrouver ici.', 'warning');
-        byId('catalogue').scrollIntoView({ behavior: 'smooth' });
+        showToast(l('favorite.empty', 'Ajoute un cœur à un fruit pour le retrouver ici.'), 'warning');
+        byId('catalogue').scrollIntoView({ behavior: reduceMotionPreference() ? 'auto' : 'smooth' });
         return;
       }
       state.favoriteOnly = !state.favoriteOnly;
       state.visible = 12;
+      persistFilters();
       renderCatalogue();
-      byId('catalogue').scrollIntoView({ behavior: 'smooth' });
+      byId('catalogue').scrollIntoView({ behavior: reduceMotionPreference() ? 'auto' : 'smooth' });
     });
 
     $$('.showcase-add').forEach((button) => button.addEventListener('click', () => addToCart(slugify(button.dataset.quickAdd), button.dataset.mode)));
@@ -1430,13 +1889,16 @@
       const favorites = event.target.closest('[data-view-favorites]');
       const cart = event.target.closest('[data-souq-cart]');
       const clearRecent = event.target.closest('[data-clear-recent]');
+      const browse = event.target.closest('[data-souq-browse]');
       if (quickView) openQuickView(quickView.dataset.quickView, quickView.dataset.mode, quickView);
       if (favorites) {
         closeSouq(false);
-        state.favoriteOnly = true;
+        state.favoriteOnly = state.favorites.size > 0;
         state.visible = 12;
+        persistFilters();
         renderCatalogue();
         byId('catalogue').scrollIntoView({ behavior: reduceMotionPreference() ? 'auto' : 'smooth' });
+        if (!state.favorites.size) showToast(l('favorite.empty', 'Ajoute un cœur à un fruit pour le retrouver ici.'), 'warning');
       }
       if (cart) {
         closeSouq(false);
@@ -1448,6 +1910,13 @@
         renderSouq();
         updateSouqIndicators();
       }
+      if (browse) {
+        closeSouq(false);
+        state.favoriteOnly = false;
+        persistFilters();
+        renderCatalogue();
+        byId('catalogue').scrollIntoView({ behavior: reduceMotionPreference() ? 'auto' : 'smooth' });
+      }
     });
 
     byId('souq-preferences-form').addEventListener('submit', (event) => {
@@ -1457,7 +1926,7 @@
         city: byId('souq-city').value
       });
       persistPreferences();
-      showToast('Tes préférences locales sont enregistrées.');
+      showToast(l('souq.preferencesSaved', 'Tes préférences locales sont enregistrées.'));
     });
 
     $('[data-mobile-souq]').addEventListener('click', (event) => openSouq(event.currentTarget));
@@ -1468,21 +1937,23 @@
     byId('drawer-backdrop').addEventListener('click', () => closeCart());
     $('.drawer-browse').addEventListener('click', () => {
       closeCart(false);
-      byId('catalogue').scrollIntoView({ behavior: 'smooth' });
+      byId('catalogue').scrollIntoView({ behavior: reduceMotionPreference() ? 'auto' : 'smooth' });
     });
 
     byId('cart-items').addEventListener('click', (event) => {
       const quantity = event.target.closest('[data-quantity]');
       const remove = event.target.closest('[data-remove]');
+      const advance = event.target.closest('[data-order-advance]');
       if (quantity) changeQuantity(quantity.dataset.id, quantity.dataset.mode, Number(quantity.dataset.quantity));
       if (remove) removeFromCart(remove.dataset.remove, remove.dataset.mode);
+      if (advance) advanceOrderTracker();
     });
 
     byId('clear-cart').addEventListener('click', () => {
       state.cart = [];
       persistCart();
       updateCartUi();
-      showToast('Commande vidée.');
+      showToast(l('cart.cleared', 'Commande vidée.'));
       window.requestAnimationFrame(() => $('.drawer-close').focus());
     });
 
@@ -1504,7 +1975,7 @@
       persistCompare();
       renderCatalogue();
       closeCompare();
-      showToast('Comparaison vidée.');
+      showToast(l('compare.cleared', 'Comparaison vidée.'));
     });
     byId('compare-modal').addEventListener('click', (event) => {
       if (event.target === byId('compare-modal') || event.target.closest('[data-close-compare]')) {
@@ -1513,6 +1984,7 @@
       }
       const remove = event.target.closest('[data-remove-compare]');
       const add = event.target.closest('[data-add]');
+      const browse = event.target.closest('[data-compare-browse]');
       if (remove) {
         toggleCompare(remove.dataset.removeCompare, remove.dataset.mode, false);
         window.requestAnimationFrame(() => {
@@ -1522,6 +1994,10 @@
         });
       }
       if (add) addToCart(add.dataset.add, add.dataset.mode);
+      if (browse) {
+        closeCompare(false);
+        byId('catalogue').scrollIntoView({ behavior: reduceMotionPreference() ? 'auto' : 'smooth' });
+      }
     });
 
     byId('quick-view-modal').addEventListener('click', (event) => {
@@ -1558,14 +2034,17 @@
       if (!byId('compare-modal').hidden) renderCompareModal();
       if (!byId('souq-drawer').hidden) renderSouq();
       i18n?.applyStatic(document);
-      showToast(i18n?.getLanguage() === 'ary' ? 'Darija tkhayrat.' : 'Interface en français.');
+      prepareStaticWhatsAppLinks();
+      showToast(i18n?.getLanguage() === 'ary'
+        ? l('language.changedDarija', 'Darija tkhayrat.')
+        : l('language.changedFrench', 'Interface en français.'));
     });
 
     document.addEventListener('keydown', (event) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
         byId('fruit-search').focus();
-        byId('catalogue').scrollIntoView({ behavior: 'smooth' });
+        byId('catalogue').scrollIntoView({ behavior: reduceMotionPreference() ? 'auto' : 'smooth' });
       }
 
       if (event.key === 'Escape') {
@@ -1578,7 +2057,8 @@
           : activeOverlay === 'souq' ? byId('souq-drawer')
             : activeOverlay === 'quick' ? byId('quick-view-modal')
               : activeOverlay === 'compare' ? byId('compare-modal')
-                : null;
+                : activeOverlay === 'filter' ? byId('filter-sheet')
+                  : null;
       if (activeContainer) trapFocus(activeContainer, event);
     });
   }
@@ -1602,6 +2082,22 @@
     });
   }
 
+  function syncContextualFab() {
+    const catalogue = byId('catalogue');
+    if (!catalogue) return;
+    const bounds = catalogue.getBoundingClientRect();
+    const catalogueInView = bounds.top < window.innerHeight
+      && bounds.bottom > 76;
+    document.body.classList.toggle('catalogue-active', catalogueInView);
+  }
+
+  function syncSearchShortcut() {
+    const shortcut = $('.search-control kbd');
+    if (!shortcut) return;
+    const platform = navigator.userAgentData?.platform || navigator.platform || '';
+    shortcut.textContent = /Mac|iPhone|iPad/i.test(platform) ? '⌘ K' : 'Ctrl K';
+  }
+
   function initSharedLinks() {
     let mobileNavFrame = null;
     window.addEventListener('scroll', () => {
@@ -1609,9 +2105,12 @@
       mobileNavFrame = window.requestAnimationFrame(() => {
         mobileNavFrame = null;
         syncMobileNavigation();
+        syncContextualFab();
       });
     }, { passive: true });
     syncMobileNavigation();
+    syncContextualFab();
+    window.addEventListener('resize', syncContextualFab, { passive: true });
 
     const sharedFruit = new URLSearchParams(window.location.search).get('fruit');
     const sharedMode = new URLSearchParams(window.location.search).get('mode');
@@ -1630,6 +2129,9 @@
   function init() {
     validateDataset();
     hydrateState();
+    syncFilterControls();
+    syncFilterLayout();
+    syncSearchShortcut();
     prepareStaticWhatsAppLinks();
     initHeroEffects();
     attachEvents();
