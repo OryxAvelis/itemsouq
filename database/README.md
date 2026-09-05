@@ -18,7 +18,7 @@ The local defaults are database `itemsouq`, user `root`, blank password, and one
 
 1. Export the existing database from phpMyAdmin.
 2. Create the target database in the InfinityFree control panel.
-3. Import `001` through `005` in order using phpMyAdmin.
+3. Import `database/itemsouq-infinityfree.sql` using phpMyAdmin. It combines migrations `001` through `005` in the required order and is safe to re-run.
 4. Copy `api/_private/config.example.php` to `api/_private/config.local.php`.
 5. Set the exact SQL hostname shown in the control panel; do not use `localhost`.
 6. Generate independent random `app_secret` and `setup_token` values, set the canonical HTTPS `origin`, and upload the private configuration.
