@@ -1,0 +1,13 @@
+# Local Itemsouq secrets and runtime files
+/api/_private/config.local.php
+/api/_private/*.log
+/api/_private/runtime/
+/api/_private/sessions/
+/database/backups/
+
+# Local release packages and design review artifacts
+/*.zip
+/design-*.png
+/design-qa.md
+/itemsouq-uiux-audit-*/
+/legacy-prototype/

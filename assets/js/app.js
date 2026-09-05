@@ -1,4 +1,4 @@
-/* Itemsouq Fruits — static storefront demo */
+/* Itemsouq Fruits — owner-managed storefront with a safe demo fallback */
 (function () {
   'use strict';
 
@@ -11,6 +11,11 @@
     : null;
   const l = (key, fallback, variables) => i18n?.t(key, fallback, variables) ?? fallback;
   const sellerWhatsAppNumber = String(config.whatsappNumber || '').replace(/\D/g, '');
+  const API = Object.freeze({
+    catalogue: 'api/v1/catalogue.php',
+    orders: 'api/v1/orders.php',
+    orderStatus: 'api/v1/order-status.php'
+  });
   const STORAGE = {
     cart: 'itemsouq:fruits:v1:cart',
     favorites: 'itemsouq:fruits:v1:favorites',
@@ -19,14 +24,14 @@
     preferences: 'itemsouq:fruits:v1:preferences',
     filters: 'itemsouq:fruits:v1:filters',
     actionHintSeen: 'itemsouq:ui:v1:action-hint-seen',
-    orderTrackers: 'itemsouq:fruits:v1:order-trackers',
-    orderSession: 'itemsouq:fruits:v1:order-session',
-    tradeListings: 'itemsouq:trading:v3:listings',
+    trackedOrders: 'itemsouq:orders:v1:tracked',
     savedTrades: 'itemsouq:trading:v3:saved',
     tradeDraft: 'itemsouq:trading:v3:draft'
   };
 
-  const ORDER_STAGE_IDS = ['prepared', 'seller-contacted', 'payment-pending', 'delivered'];
+  const ORDER_STATUS_IDS = ['new', 'contacted', 'confirmed', 'payment_pending', 'paid', 'delivering', 'completed', 'cancelled'];
+  const ORDER_REFERENCE_PATTERN = /^ISQ-\d{6}-[0-9A-HJKMNP-TV-Z]{8}$/;
+  const STATUS_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
   const mobileFilterMedia = window.matchMedia('(max-width: 680px)');
 
   const rarityLabels = {
@@ -58,8 +63,7 @@
   const byId = (id) => document.getElementById(id);
   const reduceMotionPreference = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  const slugify = (value) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-  const fruitById = new Map(fruits.map((fruit) => [slugify(fruit.name), fruit]));
+  const fruitById = new Map(fruits.map((fruit) => [fruit.id, fruit]));
 
   const state = {
     mode: 'physical',
@@ -76,8 +80,14 @@
     budget: null,
     preferences: { payment: '', city: '' },
     actionHintSeen: false,
-    orderTrackers: {},
-    orderSession: null
+    catalogue: {
+      status: 'loading',
+      version: null,
+      updatedAt: null,
+      reviewCount: 0,
+      variants: new Map()
+    },
+    trackedOrders: []
   };
 
   let toastTimer = null;
@@ -88,6 +98,11 @@
   let storageWarningShown = false;
   let filterSheetTimer = null;
   let filterSheetClosing = false;
+  let orderSubmissionPending = false;
+  let orderStatusPending = false;
+  let pendingOrderRequest = null;
+  let latestOrderDetails = null;
+  let orderStatusError = '';
 
   function safeJsonRead(key, fallback) {
     try {
@@ -109,6 +124,14 @@
         showToast(l('storage.unavailable', 'Le stockage local est indisponible sur ce navigateur.'), 'warning');
       }
       return false;
+    }
+  }
+
+  function clearLegacyOrderData() {
+    try {
+      ['itemsouq:fruits:v1:order-trackers', 'itemsouq:fruits:v1:order-session'].forEach((key) => localStorage.removeItem(key));
+    } catch (error) {
+      // Storage can be disabled; the obsolete local-only records are never read again.
     }
   }
 
@@ -170,31 +193,23 @@
     };
   }
 
-  function sanitizeOrderTrackers(input) {
-    if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
-    const clean = {};
-    Object.entries(input).slice(-16).forEach(([reference, record]) => {
-      if (!/^ISQ-\d{4,6}$/.test(reference) || !record || typeof record !== 'object') return;
-      const stage = ORDER_STAGE_IDS.includes(record.stage) ? record.stage : '';
-      if (!stage) return;
-      const updated = new Date(record.updatedAt);
-      clean[reference] = {
-        stage,
-        updatedAt: Number.isNaN(updated.getTime()) ? new Date(0).toISOString() : updated.toISOString()
-      };
-    });
-    return clean;
-  }
-
-  function sanitizeOrderSession(input) {
-    if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
-    const reference = typeof input.reference === 'string' && /^ISQ-\d{4,6}$/.test(input.reference)
-      ? input.reference
-      : '';
-    const signature = typeof input.signature === 'string' ? input.signature.slice(0, 500) : '';
-    const createdAt = new Date(input.createdAt);
-    if (!reference || !signature || Number.isNaN(createdAt.getTime())) return null;
-    return { reference, signature, createdAt: createdAt.toISOString() };
+  function sanitizeTrackedOrders(input) {
+    if (!Array.isArray(input)) return [];
+    const seen = new Set();
+    return input.slice(-5).reverse().reduce((clean, record) => {
+      if (!record || typeof record !== 'object') return clean;
+      const reference = typeof record.reference === 'string' && ORDER_REFERENCE_PATTERN.test(record.reference)
+        ? record.reference
+        : '';
+      const token = typeof record.token === 'string' && STATUS_TOKEN_PATTERN.test(record.token)
+        ? record.token
+        : '';
+      const status = ORDER_STATUS_IDS.includes(record.status) ? record.status : '';
+      if (!reference || !token || !status || seen.has(reference)) return clean;
+      seen.add(reference);
+      clean.push({ reference, token, status });
+      return clean;
+    }, []).reverse();
   }
 
   function sanitizeCart(input) {
@@ -208,7 +223,7 @@
       if (!fruitById.has(id) || !mode) return;
 
       const fruit = fruitById.get(id);
-      const stock = stockFor(fruit, mode);
+      const stock = state.catalogue.status === 'loading' ? 99 : stockFor(fruit, mode);
       const requested = Number.parseInt(line.quantity, 10);
       const quantity = Math.min(stock, Math.max(1, Number.isFinite(requested) ? requested : 1));
       const key = `${id}:${mode}`;
@@ -224,6 +239,7 @@
   }
 
   function hydrateState() {
+    clearLegacyOrderData();
     const savedFilters = sanitizeFilters(safeJsonRead(STORAGE.filters, {}));
     Object.assign(state, savedFilters);
     if (state.budget !== null && state.budget >= budgetCeiling(state.mode)) state.budget = null;
@@ -233,16 +249,14 @@
     state.recent = sanitizeIdList(safeJsonRead(STORAGE.recent, []));
     state.preferences = sanitizePreferences(safeJsonRead(STORAGE.preferences, {}));
     state.actionHintSeen = safeJsonRead(STORAGE.actionHintSeen, false) === true;
-    state.orderTrackers = sanitizeOrderTrackers(safeJsonRead(STORAGE.orderTrackers, {}));
-    state.orderSession = sanitizeOrderSession(safeJsonRead(STORAGE.orderSession, null));
+    state.trackedOrders = sanitizeTrackedOrders(safeJsonRead(STORAGE.trackedOrders, []));
     persistCart();
     persistFavorites();
     persistCompare();
     persistRecent();
     persistPreferences();
     persistFilters();
-    persistOrderTrackers();
-    persistOrderSession();
+    persistTrackedOrders();
   }
 
   function persistCart() {
@@ -277,42 +291,224 @@
     });
   }
 
-  function persistOrderTrackers() {
-    const entries = Object.entries(state.orderTrackers)
-      .sort(([, a], [, b]) => String(a.updatedAt).localeCompare(String(b.updatedAt)))
-      .slice(-12);
-    state.orderTrackers = Object.fromEntries(entries);
-    safeJsonWrite(STORAGE.orderTrackers, state.orderTrackers);
-  }
-
-  function persistOrderSession() {
-    safeJsonWrite(STORAGE.orderSession, state.orderSession);
+  function persistTrackedOrders() {
+    state.trackedOrders = sanitizeTrackedOrders(state.trackedOrders);
+    safeJsonWrite(STORAGE.trackedOrders, state.trackedOrders.map(({ reference, token, status }) => ({ reference, token, status })));
   }
 
   function roundToFive(value) {
     return Math.ceil(value / 5) * 5;
   }
 
-  function demoPrice(fruit, mode) {
+  function fallbackPrice(fruit, mode) {
     if (!fruit || !Number.isFinite(fruit.beli) || !Number.isFinite(fruit.robux)) return null;
     if (mode === 'permanent') return roundToFive(Math.max(25, fruit.robux * 0.15));
     return roundToFive(Math.max(10, Math.sqrt(fruit.beli) * 0.04));
   }
 
-  function budgetCeiling(mode = state.mode) {
-    const highest = fruits.reduce((max, fruit) => Math.max(max, demoPrice(fruit, mode) || 0), 0);
-    return Math.max(50, Math.ceil(highest / 50) * 50);
-  }
-
-  function stockFor(fruit, mode) {
+  function fallbackStock(fruit, mode) {
     if (mode === 'permanent') return 1;
     const seed = [...fruit.name].reduce((total, char) => total + char.charCodeAt(0), 0);
     return (seed % 5) + 1;
   }
 
+  function variantKey(fruitId, mode) {
+    return `${fruitId}:${mode}`;
+  }
+
+  function fallbackOffer(fruit, mode) {
+    return {
+      fruitId: fruit.id,
+      mode,
+      priceMad: fallbackPrice(fruit, mode),
+      availability: 'available',
+      quantityAvailable: fallbackStock(fruit, mode),
+      source: 'fallback'
+    };
+  }
+
+  function unavailableOffer(fruit, mode) {
+    return {
+      fruitId: fruit.id,
+      mode,
+      priceMad: null,
+      availability: 'out_of_stock',
+      quantityAvailable: 0,
+      source: 'live'
+    };
+  }
+
+  function offerFor(fruit, mode) {
+    if (!fruit || !['physical', 'permanent'].includes(mode)) return null;
+    if (state.catalogue.status !== 'live') return fallbackOffer(fruit, mode);
+    return state.catalogue.variants.get(variantKey(fruit.id, mode)) || unavailableOffer(fruit, mode);
+  }
+
+  function isOrderable(offer) {
+    return Boolean(offer && offer.availability === 'available' && offer.needsOwnerReview !== true && Number.isFinite(offer.priceMad));
+  }
+
+  function maxOrderQuantity(offer) {
+    if (!isOrderable(offer)) return 0;
+    return Number.isInteger(offer.quantityAvailable) ? Math.min(99, Math.max(0, offer.quantityAvailable)) : 99;
+  }
+
+  function priceFor(fruit, mode) {
+    return offerFor(fruit, mode)?.priceMad ?? null;
+  }
+
+  function stockFor(fruit, mode) {
+    return maxOrderQuantity(offerFor(fruit, mode));
+  }
+
+  function availabilityLabel(offer) {
+    if (!offer) return l('stock.unavailable', 'Indisponible');
+    if (offer.source === 'fallback') {
+      return l('card.stockFallback', `Stock démo ${offer.quantityAvailable}`, { count: offer.quantityAvailable });
+    }
+    if (offer.needsOwnerReview) return l('stock.needsOwnerReview', 'À confirmer par Itemsouq');
+    if (offer.availability === 'hidden') return l('stock.hidden', 'Non publié');
+    if (offer.availability === 'on_request') return l('stock.onRequest', 'Sur demande');
+    if (offer.availability === 'out_of_stock') return l('stock.outOfStock', 'Rupture de stock');
+    if (Number.isInteger(offer.quantityAvailable)) {
+      return l('stock.availableCount', `${offer.quantityAvailable} en stock`, { count: offer.quantityAvailable });
+    }
+    return l('status.available', 'Disponible');
+  }
+
+  function availabilityClass(offer) {
+    if (offer?.source === 'fallback') return ' is-fallback';
+    if (offer?.needsOwnerReview) return ' is-on-request';
+    if (offer?.availability === 'available') return ' is-available';
+    if (offer?.availability === 'on_request') return ' is-on-request';
+    return ' is-unavailable';
+  }
+
+  function priceLabel(offer) {
+    if (offer?.source === 'fallback') return l('card.demoPrice', 'Prix démo Itemsouq');
+    if (offer?.needsOwnerReview) return l('card.provisionalPrice', 'Prix à confirmer');
+    return l('card.itemsouqPrice', 'Prix Itemsouq');
+  }
+
+  function orderButtonMarkup(fruitId, mode, className = 'add-cart-button') {
+    const fruit = fruitById.get(fruitId);
+    const offer = offerFor(fruit, mode);
+    if (isOrderable(offer)) {
+      return `<button class="${className}" type="button" data-add="${fruitId}" data-mode="${mode}"><i class="fa-solid fa-plus" aria-hidden="true"></i> ${l('card.add', 'Ajouter')}</button>`;
+    }
+    const label = availabilityLabel(offer);
+    return `<button class="${className} is-unavailable" type="button" disabled aria-disabled="true"><i class="fa-solid fa-ban" aria-hidden="true"></i> ${label}</button>`;
+  }
+
+  function compareOrderButton(entry) {
+    return orderButtonMarkup(entry.id, entry.mode, 'btn btn-primary');
+  }
+
+  function normalizeCataloguePayload(payload) {
+    const catalogue = payload?.catalogue || payload?.data?.catalogue || payload?.data;
+    const items = Array.isArray(catalogue?.items) ? catalogue.items : Array.isArray(catalogue?.fruits) ? catalogue.fruits : null;
+    if (!payload?.ok || !catalogue || typeof catalogue !== 'object' || !items) {
+      throw new Error('INVALID_CATALOGUE_RESPONSE');
+    }
+    const rawVersion = payload?.meta?.catalogueVersion ?? catalogue.version;
+    const version = typeof rawVersion === 'string' && /^[A-Za-z0-9_-]{8,128}$/.test(rawVersion) ? rawVersion : null;
+    const allowedAvailability = new Set(['available', 'out_of_stock', 'on_request', 'hidden']);
+    const variants = new Map();
+    const addVariant = (fruitId, mode, item) => {
+      const availability = allowedAvailability.has(item?.availability) ? item.availability : '';
+      if (!fruitById.has(fruitId) || !mode || !availability) return;
+      const rawPrice = item.priceMad;
+      const priceMad = rawPrice === null ? null : Number(rawPrice);
+      const rawQuantity = item.quantityAvailable;
+      const quantityAvailable = rawQuantity === null ? null : Number.parseInt(rawQuantity, 10);
+      if (priceMad !== null && (!Number.isFinite(priceMad) || priceMad < 0 || priceMad > 99999999.99)) return;
+      if (quantityAvailable !== null && (!Number.isInteger(quantityAvailable) || quantityAvailable < 0 || quantityAvailable > 65535)) return;
+      if (availability === 'available' && (priceMad === null || quantityAvailable === 0)) return;
+      variants.set(variantKey(fruitId, mode), {
+        fruitId,
+        mode,
+        priceMad,
+        availability,
+        quantityAvailable,
+        needsOwnerReview: item.needsOwnerReview === true,
+        source: 'live'
+      });
+    };
+    items.forEach((item) => {
+      if (!item || typeof item !== 'object') return;
+      const fruitId = typeof item.id === 'string'
+        ? item.id
+        : typeof item.fruitSlug === 'string'
+          ? item.fruitSlug
+          : typeof item.slug === 'string' ? item.slug : '';
+      const offerings = item.offerings && typeof item.offerings === 'object' ? item.offerings : item.modes;
+      if (offerings && typeof offerings === 'object') {
+        ['physical', 'permanent'].forEach((mode) => addVariant(fruitId, mode, offerings[mode]));
+      } else {
+        const mode = item.mode === 'physical' || item.mode === 'permanent' ? item.mode : '';
+        addVariant(fruitId, mode, item);
+      }
+    });
+    return {
+      version,
+      reviewCount: Number.isInteger(payload?.meta?.reviewCount) ? Math.max(0, payload.meta.reviewCount) : 0,
+      updatedAt: typeof payload?.meta?.updatedAt === 'string'
+        ? payload.meta.updatedAt
+        : typeof catalogue.updatedAt === 'string' ? catalogue.updatedAt : null,
+      variants
+    };
+  }
+
+  async function requestJson(url, options = {}, timeoutMs = 10000) {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, {
+        credentials: 'same-origin',
+        ...options,
+        headers: { Accept: 'application/json', ...(options.headers || {}) },
+        signal: controller.signal
+      });
+      let payload = null;
+      try {
+        payload = await response.json();
+      } catch (error) {
+        throw new Error('INVALID_JSON_RESPONSE');
+      }
+      if (!response.ok || payload?.ok === false) {
+        const failure = new Error(payload?.error?.code || `HTTP_${response.status}`);
+        failure.code = payload?.error?.code || `HTTP_${response.status}`;
+        failure.status = response.status;
+        failure.payload = payload;
+        throw failure;
+      }
+      return payload;
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }
+
+  async function loadCatalogue() {
+    state.catalogue.status = 'loading';
+    renderCatalogueSourceStatus();
+    try {
+      const normalized = normalizeCataloguePayload(await requestJson(API.catalogue, { method: 'GET', cache: 'no-store' }));
+      state.catalogue = { status: 'live', ...normalized };
+    } catch (error) {
+      state.catalogue = { status: 'fallback', version: null, updatedAt: null, reviewCount: 0, variants: new Map() };
+    }
+    reconcileCartWithCatalogue();
+    renderCatalogueSourceStatus();
+  }
+
+  function budgetCeiling(mode = state.mode) {
+    const highest = fruits.reduce((max, fruit) => Math.max(max, priceFor(fruit, mode) || 0), 0);
+    return Math.max(50, Math.ceil(highest / 50) * 50);
+  }
+
   function formatMad(value) {
     if (!Number.isFinite(value) || value < 0) return l('price.onRequest', 'Sur demande');
-    return `${new Intl.NumberFormat('fr-MA', { maximumFractionDigits: 0 }).format(value)} MAD`;
+    return `${new Intl.NumberFormat('fr-MA', { maximumFractionDigits: 2 }).format(value)} MAD`;
   }
 
   function formatNumber(value) {
@@ -339,7 +535,7 @@
   }
 
   function fruitImagePath(fruit) {
-    return `assets/images/fruits/${slugify(fruit.name)}.webp`;
+    return `assets/images/fruits/${fruit.id}.webp`;
   }
 
   function wireFruitImageFallbacks(root = document) {
@@ -385,10 +581,12 @@
       const matchesSearch = !query || fruit.name.toLocaleLowerCase('fr').includes(query);
       const matchesRarity = state.rarity === 'all' || fruit.rarity === state.rarity;
       const matchesType = state.type === 'all' || fruit.type === state.type;
-      const matchesFavorite = !state.favoriteOnly || state.favorites.has(slugify(fruit.name));
-      const price = demoPrice(fruit, state.mode);
+      const matchesFavorite = !state.favoriteOnly || state.favorites.has(fruit.id);
+      const offer = offerFor(fruit, state.mode);
+      const price = offer?.priceMad;
+      const visibleInCatalogue = offer?.availability !== 'hidden';
       const matchesBudget = state.budget === null || (Number.isFinite(price) && price <= state.budget);
-      return matchesSearch && matchesRarity && matchesType && matchesFavorite && matchesBudget;
+      return visibleInCatalogue && matchesSearch && matchesRarity && matchesType && matchesFavorite && matchesBudget;
     });
 
     result.sort((a, b) => {
@@ -402,16 +600,18 @@
   }
 
   function createFruitCard(fruit) {
-    const id = slugify(fruit.name);
+    const id = fruit.id;
     const classes = fruitVisualClasses(fruit);
     const favorite = state.favorites.has(id);
     const compared = state.compare.some((entry) => entry.id === id && entry.mode === state.mode);
     const mode = modeCopy(state.mode);
-    const price = demoPrice(fruit, state.mode);
-    const stock = stockFor(fruit, state.mode);
+    const offer = offerFor(fruit, state.mode);
+    const price = offer?.priceMad;
     const quickMessage = l(
-      'whatsapp.fruitInquiry',
-      `Salam Itemsouq, je veux vérifier ${fruit.name} (${mode.long}) — prix démo ${formatMad(price)}.`,
+      offer?.source === 'fallback' ? 'whatsapp.fruitInquiry' : 'whatsapp.fruitInquiryLive',
+      offer?.source === 'fallback'
+        ? `Salam Itemsouq, je veux vérifier ${fruit.name} (${mode.long}) — prix démo ${formatMad(price)}.`
+        : `Salam Itemsouq, je veux vérifier ${fruit.name} (${mode.long}) — prix affiché ${formatMad(price)}.`,
       { fruit: fruit.name, mode: mode.long, price: formatMad(price) }
     );
     const quickLabel = sellerWhatsAppNumber
@@ -451,19 +651,17 @@
           </div>
           <div class="fruit-essential-meta">
             <span class="mode-label"><i class="fa-solid ${mode.icon}" aria-hidden="true"></i>${mode.short}</span>
-            <span class="stock-chip">${l('card.stock', `Stock démo ${stock}`, { count: stock })}</span>
+            <span class="stock-chip${availabilityClass(offer)}">${availabilityLabel(offer)}</span>
           </div>
           <div class="card-price">
-            <span>${l('card.demoPrice', 'Prix démo Itemsouq')}<strong>${formatMad(price)}</strong></span>
+            <span>${priceLabel(offer)}<strong>${formatMad(price)}</strong></span>
           </div>
           <div class="official-value">
             <span>${l('card.wiki', 'Valeur wiki')}</span>
             <strong>${officialValue(fruit, state.mode)}</strong>
           </div>
           <div class="card-actions">
-            <button class="add-cart-button" type="button" data-add="${id}" data-mode="${state.mode}">
-              <i class="fa-solid fa-plus" aria-hidden="true"></i> ${l('card.add', 'Ajouter')}
-            </button>
+            ${orderButtonMarkup(id, state.mode)}
             <a class="quick-whatsapp" href="${whatsappUrl(quickMessage)}" target="_blank" rel="noopener" aria-label="${escapeAttribute(quickLabel)}" title="${escapeAttribute(quickLabel)}">
               <i class="fa-brands fa-whatsapp" aria-hidden="true"></i>
             </a>
@@ -471,6 +669,38 @@
         </div>
       </article>
     `;
+  }
+
+  function renderCatalogueSourceStatus() {
+    const status = byId('catalogue-data-status');
+    if (status) {
+      status.className = `catalogue-data-status is-${state.catalogue.status}`;
+      if (state.catalogue.status === 'loading') {
+        status.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i><span>${l('catalogue.loadingPrices', 'Chargement des prix et disponibilités Itemsouq…')}</span>`;
+      } else if (state.catalogue.status === 'live') {
+        status.innerHTML = state.catalogue.reviewCount > 0
+          ? `<i class="fa-solid fa-circle-info" aria-hidden="true"></i><span>${l('catalogue.ownerReviewPending', 'Catalogue chargé : certains prix attendent encore la confirmation du propriétaire.')}</span>`
+          : `<i class="fa-solid fa-circle-check" aria-hidden="true"></i><span>${l('catalogue.ownerManaged', 'Prix et disponibilités mis à jour par Itemsouq.')}</span>`;
+      } else {
+        status.innerHTML = `<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>${l('catalogue.demoFallback', 'Base de données indisponible : prix et stocks de démonstration, à confirmer sur WhatsApp.')}</span>`;
+      }
+    }
+
+    const fruit = fruitById.get('dragon');
+    const offer = offerFor(fruit, 'permanent');
+    const featuredStatus = byId('featured-availability');
+    const featuredAdd = $('.showcase-add');
+    if (featuredStatus) {
+      featuredStatus.className = `status-chip${availabilityClass(offer)}`;
+      const text = $('[data-featured-availability-text]', featuredStatus);
+      if (text) text.textContent = availabilityLabel(offer);
+    }
+    if (featuredAdd) {
+      const enabled = isOrderable(offer);
+      featuredAdd.disabled = !enabled;
+      featuredAdd.setAttribute('aria-disabled', String(!enabled));
+      featuredAdd.classList.toggle('is-unavailable', !enabled);
+    }
   }
 
   function renderCatalogue() {
@@ -498,6 +728,7 @@
     updateFavoriteTrigger();
     renderCompareTray();
     updateSouqIndicators();
+    renderCatalogueSourceStatus();
     window.requestAnimationFrame(() => grid.setAttribute('aria-busy', 'false'));
   }
 
@@ -776,10 +1007,10 @@
   }
 
   function quickViewMarkup(fruit, mode) {
-    const id = slugify(fruit.name);
+    const id = fruit.id;
     const classes = fruitVisualClasses(fruit);
-    const price = demoPrice(fruit, mode);
-    const stock = stockFor(fruit, mode);
+    const offer = offerFor(fruit, mode);
+    const price = offer?.priceMad;
     const compared = isCompared(id, mode);
     const compareLabel = compared
       ? l('aria.removeFromComparison', 'Retirer de la comparaison')
@@ -792,7 +1023,7 @@
       <div class="quick-view-details">
         <span class="rarity-tag ${classes.tag}">${rarityLabel(fruit.rarity)}</span>
         <h3>${fruit.name}</h3>
-        <p>${l('quick.description', `${typeLabel(fruit.type)} · ${l('card.stock', `Stock démo ${stock}`, { count: stock })} · ${l('mode.physicalLong', 'Fruit physique')} ou ${l('mode.permanentLong', 'fruit permanent').toLowerCase()}.`, { type: typeLabel(fruit.type), stock: l('card.stock', `Stock démo ${stock}`, { count: stock }), physical: l('mode.physicalLong', 'Fruit physique'), permanent: l('mode.permanentLong', 'fruit permanent').toLowerCase() })}</p>
+        <p>${l('quick.description', `${typeLabel(fruit.type)} · ${availabilityLabel(offer)} · ${l('mode.physicalLong', 'Fruit physique')} ou ${l('mode.permanentLong', 'fruit permanent').toLowerCase()}.`, { type: typeLabel(fruit.type), stock: availabilityLabel(offer), physical: l('mode.physicalLong', 'Fruit physique'), permanent: l('mode.permanentLong', 'fruit permanent').toLowerCase() })}</p>
         <div class="quick-view-mode" role="group" aria-label="${l('aria.fruitFormatNamed', `Format de ${fruit.name}`, { fruit: fruit.name })}">
           <button type="button" class="${mode === 'physical' ? 'active' : ''}" data-quick-mode="physical" aria-pressed="${mode === 'physical'}"><i class="fa-solid fa-box-open" aria-hidden="true"></i> ${l('mode.physical', 'Physique')}</button>
           <button type="button" class="${mode === 'permanent' ? 'active' : ''}" data-quick-mode="permanent" aria-pressed="${mode === 'permanent'}"><i class="fa-solid fa-infinity" aria-hidden="true"></i> ${l('mode.permanent', 'Permanent')}</button>
@@ -801,11 +1032,13 @@
           <div class="quick-fact"><span>${l('card.wiki', 'Valeur wiki')}</span><strong>${officialValue(fruit, mode)}</strong></div>
           <div class="quick-fact"><span>${l('fact.type', 'Type')}</span><strong><i class="fa-solid ${typeIcon(fruit.type)}" aria-hidden="true"></i> ${typeLabel(fruit.type)}</strong></div>
           <div class="quick-fact"><span>${l('fact.rarity', 'Rareté')}</span><strong>${rarityLabel(fruit.rarity)}</strong></div>
-          <div class="quick-fact"><span>${l('fact.stock', 'Stock démo')}</span><strong>${l('stock.availableCount', `${stock} en stock`, { count: stock })}</strong></div>
+          <div class="quick-fact"><span>${l('fact.stock', 'Disponibilité')}</span><strong>${availabilityLabel(offer)}</strong></div>
         </div>
-        <div class="quick-view-price"><span>${l('card.demoPrice', 'Prix démo Itemsouq')}<strong>${formatMad(price)}</strong></span><span>${l('price.confirmWhatsApp', 'À confirmer sur WhatsApp')}</span></div>
+        <div class="quick-view-price"><span>${priceLabel(offer)}<strong>${formatMad(price)}</strong></span><span>${offer?.source === 'fallback' ? l('price.confirmWhatsApp', 'À confirmer sur WhatsApp') : offer?.needsOwnerReview ? l('price.ownerReviewRequired', 'Confirmation Itemsouq requise') : l('price.ownerManaged', 'Mis à jour par Itemsouq')}</span></div>
         <div class="quick-view-actions">
-          <button class="btn btn-primary" type="button" data-quick-add="${id}" data-mode="${mode}"><i class="fa-solid fa-plus" aria-hidden="true"></i> <span>${l('quick.add', 'Ajouter à la commande')}</span></button>
+          ${isOrderable(offer)
+            ? `<button class="btn btn-primary" type="button" data-quick-add="${id}" data-mode="${mode}"><i class="fa-solid fa-plus" aria-hidden="true"></i> <span>${l('quick.add', 'Ajouter à la commande')}</span></button>`
+            : `<button class="btn btn-primary is-unavailable" type="button" disabled aria-disabled="true"><i class="fa-solid fa-ban" aria-hidden="true"></i> <span>${availabilityLabel(offer)}</span></button>`}
           <button class="quick-compare${compared ? ' active' : ''}" type="button" data-quick-compare="${id}" data-mode="${mode}" aria-label="${escapeAttribute(compareLabel)}" title="${escapeAttribute(compareLabel)}" aria-pressed="${compared}"><i class="fa-solid fa-code-compare" aria-hidden="true"></i></button>
           <button class="quick-share" type="button" data-share-fruit="${id}" data-mode="${mode}" aria-label="${escapeAttribute(shareLabel)}" title="${escapeAttribute(shareLabel)}"><i class="fa-solid fa-share-nodes" aria-hidden="true"></i></button>
         </div>
@@ -831,7 +1064,7 @@
     }
     const heads = entries.map((entry) => `<th class="compare-cell" scope="col"><div class="compare-fruit-head"><button type="button" data-remove-compare="${entry.id}" data-mode="${entry.mode}" aria-label="${l('aria.removeFromCompare', `Retirer ${entry.fruit.name} de la comparaison`, { fruit: entry.fruit.name })}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button><img src="${fruitImagePath(entry.fruit)}" alt="" width="512" height="512"><strong>${entry.fruit.name}</strong><span class="mode-label"><i class="fa-solid ${modeCopy(entry.mode).icon}" aria-hidden="true"></i>${modeCopy(entry.mode).short}</span></div></th>`).join('');
     const row = (label, renderValue) => `<tr><th class="compare-label" scope="row">${label}</th>${entries.map((entry) => `<td class="compare-cell">${renderValue(entry)}</td>`).join('')}</tr>`;
-    body.innerHTML = `<table class="compare-grid" aria-label="${l('aria.compareFruitCount', `Comparaison de ${entries.length} fruits`, { count: entries.length })}" style="--compare-count:${entries.length}"><caption>${l('compare.caption', 'Comparaison de fruits Itemsouq')}</caption><thead><tr><th class="compare-label" scope="col">${l('compare.fruit', 'Fruit')}</th>${heads}</tr></thead><tbody>${row(l('fact.rarity', 'Rareté'), (entry) => rarityLabel(entry.fruit.rarity))}${row(l('fact.type', 'Type'), (entry) => typeLabel(entry.fruit.type))}${row(l('card.wiki', 'Valeur wiki'), (entry) => officialValue(entry.fruit, entry.mode))}${row(l('compare.demoPrice', 'Prix démo'), (entry) => `<strong>${formatMad(demoPrice(entry.fruit, entry.mode))}</strong>`)}${row(l('fact.stock', 'Stock démo'), (entry) => String(stockFor(entry.fruit, entry.mode)))}${row(l('compare.order', 'Commande'), (entry) => `<button class="btn btn-primary" type="button" data-add="${entry.id}" data-mode="${entry.mode}"><i class="fa-solid fa-plus" aria-hidden="true"></i> ${l('card.add', 'Ajouter')}</button>`)}</tbody></table>`;
+    body.innerHTML = `<table class="compare-grid" aria-label="${l('aria.compareFruitCount', `Comparaison de ${entries.length} fruits`, { count: entries.length })}" style="--compare-count:${entries.length}"><caption>${l('compare.caption', 'Comparaison de fruits Itemsouq')}</caption><thead><tr><th class="compare-label" scope="col">${l('compare.fruit', 'Fruit')}</th>${heads}</tr></thead><tbody>${row(l('fact.rarity', 'Rareté'), (entry) => rarityLabel(entry.fruit.rarity))}${row(l('fact.type', 'Type'), (entry) => typeLabel(entry.fruit.type))}${row(l('card.wiki', 'Valeur wiki'), (entry) => officialValue(entry.fruit, entry.mode))}${row(l('compare.price', 'Prix Itemsouq'), (entry) => `<strong>${formatMad(priceFor(entry.fruit, entry.mode))}</strong>`)}${row(l('fact.stock', 'Disponibilité'), (entry) => availabilityLabel(offerFor(entry.fruit, entry.mode)))}${row(l('compare.order', 'Commande'), (entry) => compareOrderButton(entry))}</tbody></table>`;
   }
 
   function souqMiniMarkup(ids, emptyCopy) {
@@ -845,12 +1078,10 @@
   function renderSouq() {
     const stats = byId('souq-stats');
     if (!stats) return;
-    const tradeListings = safeJsonRead(STORAGE.tradeListings, []);
-    const validTradeIds = new Set(Array.isArray(tradeListings)
-      ? tradeListings.filter((trade) => trade && typeof trade === 'object' && typeof trade.id === 'string' && /^[A-Za-z0-9_-]{1,90}$/.test(trade.id)).map((trade) => trade.id)
-      : []);
     const savedTradeData = safeJsonRead(STORAGE.savedTrades, []);
-    const savedTradeCount = Array.isArray(savedTradeData) ? new Set(savedTradeData.filter((id) => typeof id === 'string' && validTradeIds.has(id))).size : 0;
+    const savedTradeCount = Array.isArray(savedTradeData)
+      ? new Set(savedTradeData.filter((id) => typeof id === 'string' && /^TRD-[0-9A-HJKMNP-TV-Z]{16}$/.test(id))).size
+      : 0;
     const draft = safeJsonRead(STORAGE.tradeDraft, null);
     const draftDate = draft && typeof draft === 'object' ? new Date(draft.savedAt) : null;
     const hasDraft = Boolean(draft && typeof draft === 'object' && draftDate && !Number.isNaN(draftDate.getTime()) && (typeof draft.username === 'string' || typeof draft.note === 'string' || Array.isArray(draft.offered) || Array.isArray(draft.wanted)));
@@ -868,10 +1099,13 @@
   async function shareFruit(id, mode) {
     const fruit = fruitById.get(id);
     if (!fruit) return;
+    const offer = offerFor(fruit, mode);
     const text = l(
-      'share.fruitSummary',
-      `${fruit.name} · ${modeCopy(mode).long} · ${formatMad(demoPrice(fruit, mode))} (prix démo à confirmer) — Itemsouq`,
-      { fruit: fruit.name, mode: modeCopy(mode).long, price: formatMad(demoPrice(fruit, mode)) }
+      offer?.source === 'fallback' ? 'share.fruitSummary' : 'share.fruitSummaryLive',
+      offer?.source === 'fallback'
+        ? `${fruit.name} · ${modeCopy(mode).long} · ${formatMad(priceFor(fruit, mode))} (prix démo à confirmer) — Itemsouq`
+        : `${fruit.name} · ${modeCopy(mode).long} · ${formatMad(priceFor(fruit, mode))} — Itemsouq`,
+      { fruit: fruit.name, mode: modeCopy(mode).long, price: formatMad(priceFor(fruit, mode)) }
     );
     const sharedUrl = new URL(window.location.href);
     sharedUrl.hash = '';
@@ -918,7 +1152,14 @@
     const fruit = fruitById.get(id);
     if (!fruit || !['physical', 'permanent'].includes(mode)) return;
 
-    const stock = stockFor(fruit, mode);
+    const offer = offerFor(fruit, mode);
+    if (!isOrderable(offer)) {
+      showToast(offer?.availability === 'on_request'
+        ? l('cart.requestOnly', 'Ce fruit est disponible uniquement sur demande WhatsApp.')
+        : l('cart.unavailable', 'Ce fruit est indisponible pour le moment.'), 'warning');
+      return;
+    }
+    const stock = maxOrderQuantity(offer);
     const key = cartLineKey(id, mode);
     const existing = state.cart.find((line) => cartLineKey(line.id, line.mode) === key);
 
@@ -948,7 +1189,13 @@
       return;
     }
 
-    line.quantity = Math.min(stockFor(fruit, mode), next);
+    const maximum = maxOrderQuantity(offerFor(fruit, mode));
+    if (!maximum) {
+      removeFromCart(id, mode);
+      showToast(l('cart.unavailableRemoved', 'Ce fruit n’est plus disponible et a été retiré.'), 'warning');
+      return;
+    }
+    line.quantity = Math.min(maximum, next);
     persistCart();
     updateCartUi();
     window.requestAnimationFrame(() => {
@@ -963,6 +1210,28 @@
     window.requestAnimationFrame(() => $('.drawer-close').focus());
   }
 
+  function reconcileCartWithCatalogue() {
+    if (state.catalogue.status === 'loading' || !state.cart.length) return;
+    let changed = false;
+    const nextCart = [];
+    state.cart.forEach((line) => {
+      const fruit = fruitById.get(line.id);
+      const offer = offerFor(fruit, line.mode);
+      const maximum = maxOrderQuantity(offer);
+      if (!fruit || !maximum) {
+        changed = true;
+        return;
+      }
+      const quantity = Math.min(maximum, Math.max(1, line.quantity));
+      if (quantity !== line.quantity) changed = true;
+      nextCart.push({ ...line, quantity });
+    });
+    if (!changed) return;
+    state.cart = nextCart;
+    persistCart();
+    showToast(l('cart.reconciled', 'Ta commande a été ajustée selon la disponibilité actuelle.'), 'warning');
+  }
+
   function cartQuantity() {
     return state.cart.reduce((total, line) => total + line.quantity, 0);
   }
@@ -970,7 +1239,7 @@
   function cartTotal() {
     return state.cart.reduce((total, line) => {
       const fruit = fruitById.get(line.id);
-      const price = demoPrice(fruit, line.mode);
+      const price = priceFor(fruit, line.mode);
       return total + (Number.isFinite(price) ? price * line.quantity : 0);
     }, 0);
   }
@@ -979,7 +1248,7 @@
     const fruit = fruitById.get(line.id);
     if (!fruit) return '';
     const classes = fruitVisualClasses(fruit);
-    const price = demoPrice(fruit, line.mode);
+    const price = priceFor(fruit, line.mode);
     const copy = modeCopy(line.mode);
     const key = `${line.id}|${line.mode}`;
 
@@ -1008,12 +1277,13 @@
     const quantity = cartQuantity();
     byId('cart-count').textContent = String(quantity);
     byId('drawer-count').textContent = quantity ? `(${quantity})` : '(0)';
-    byId('cart-items').innerHTML = state.cart.map(cartLineMarkup).join('') + orderTrackerMarkup();
+    byId('cart-items').innerHTML = state.cart.map(cartLineMarkup).join('');
     byId('cart-empty').hidden = state.cart.length !== 0;
     byId('cart-footer').hidden = state.cart.length === 0;
     byId('cart-total').textContent = formatMad(cartTotal());
     wireFruitImageFallbacks(byId('cart-items'));
     renderOrderPreview();
+    renderOrderTracker();
     updateSouqIndicators();
     if (!byId('souq-drawer')?.hidden) renderSouq();
     if (activeOverlay === 'cart') updateOrderSteppers(1);
@@ -1026,7 +1296,7 @@
 
     const rows = state.cart.map((line) => {
       const fruit = fruitById.get(line.id);
-      const price = demoPrice(fruit, line.mode);
+      const price = priceFor(fruit, line.mode);
       return `
         <div class="preview-row">
           <span>${fruit.name} · ${modeCopy(line.mode).short} × ${line.quantity}</span>
@@ -1036,7 +1306,7 @@
     }).join('');
 
     preview.innerHTML = `
-      <div class="preview-head"><span>${l('order.demoSummary', 'Résumé démo')}</span><span>${l('order.articleCount', `${cartQuantity()} article${cartQuantity() > 1 ? 's' : ''}`, { count: cartQuantity() })}</span></div>
+      <div class="preview-head"><span>${l('order.summary', 'Résumé de la commande')}</span><span>${l('order.articleCount', `${cartQuantity()} article${cartQuantity() > 1 ? 's' : ''}`, { count: cartQuantity() })}</span></div>
       ${rows}
       <div class="preview-total"><span>${l('order.estimatedTotal', 'Total indicatif')}</span><strong>${formatMad(cartTotal())}</strong></div>
     `;
@@ -1220,6 +1490,7 @@
     $('[data-mobile-cart]')?.setAttribute('aria-expanded', 'true');
     updateOrderSteppers(1);
     syncBodyOverlay();
+    if (latestTrackedOrder()) void refreshLatestOrderStatus({ announce: false });
     window.requestAnimationFrame(() => $('.drawer-close').focus());
   }
 
@@ -1239,6 +1510,12 @@
     closeCart(false);
     activateOverlay('checkout', returnTarget || trigger);
     checkoutMessagePrepared = false;
+    setCheckoutApiStatus();
+    const fallbackLink = byId('checkout-whatsapp-fallback');
+    if (fallbackLink) {
+      fallbackLink.hidden = true;
+      fallbackLink.removeAttribute('href');
+    }
     byId('checkout-modal').hidden = false;
     syncBodyOverlay();
     renderOrderPreview();
@@ -1371,8 +1648,8 @@
     if (!username) {
       setFieldError('roblox-username', l('validation.robloxUsername', 'Entre ton pseudo Roblox.'));
       firstInvalid ||= byId('roblox-username');
-    } else if (!/^[A-Za-z0-9_]{3,30}$/.test(username)) {
-      setFieldError('roblox-username', l('validation.robloxFormat', 'Utilise 3 à 30 lettres, chiffres ou _.'));
+    } else if (!/^[A-Za-z0-9_]{3,20}$/.test(username)) {
+      setFieldError('roblox-username', l('validation.robloxFormat20', 'Utilise 3 à 20 lettres, chiffres ou _.'));
       firstInvalid ||= byId('roblox-username');
     }
 
@@ -1397,129 +1674,182 @@
       .join('|');
   }
 
-  function createOrderReference() {
-    const randomNumber = () => {
-      if (window.crypto?.getRandomValues) {
-        const value = new Uint32Array(1);
-        window.crypto.getRandomValues(value);
-        return value[0] % 1000000;
-      }
-      return Math.floor(Math.random() * 1000000);
-    };
-    for (let attempt = 0; attempt < 24; attempt += 1) {
-      const reference = `ISQ-${String(randomNumber()).padStart(6, '0')}`;
-      if (!state.orderTrackers[reference]) return reference;
-    }
-    let fallback = Date.now() % 1000000;
-    while (state.orderTrackers[`ISQ-${String(fallback).padStart(6, '0')}`]) fallback = (fallback + 1) % 1000000;
-    return `ISQ-${String(fallback).padStart(6, '0')}`;
-  }
-
-  function orderReference() {
-    if (!state.cart.length) {
-      if (state.orderSession) {
-        state.orderSession = null;
-        persistOrderSession();
-      }
-      return '';
-    }
-    const signature = cartSignature();
-    if (state.orderSession?.signature !== signature) {
-      state.orderSession = {
-        reference: createOrderReference(),
-        signature,
-        createdAt: new Date().toISOString()
-      };
-      persistOrderSession();
-    }
-    return state.orderSession.reference;
-  }
-
   function orderStageDefinitions() {
     return [
       { id: 'prepared', label: l('tracker.stage.prepared', 'Préparée') },
       { id: 'seller-contacted', label: l('tracker.stage.sellerContacted', 'Vendeur contacté') },
       { id: 'payment-pending', label: l('tracker.stage.paymentPending', 'Paiement en attente') },
-      { id: 'delivered', label: l('tracker.stage.delivered', 'Livrée') }
+      { id: 'delivered', label: l('tracker.stage.delivered', 'Livraison') }
     ];
   }
 
-  function currentOrderTracker() {
-    if (!state.cart.length) {
-      if (state.orderSession) {
-        state.orderSession = null;
-        persistOrderSession();
-      }
-      return null;
-    }
-    const reference = orderReference();
-    if (!state.orderTrackers[reference]) {
-      state.orderTrackers[reference] = { stage: ORDER_STAGE_IDS[0], updatedAt: new Date().toISOString() };
-      persistOrderTrackers();
-    }
-    return { reference, ...state.orderTrackers[reference] };
+  function orderStatusPresentation(status) {
+    const definitions = {
+      new: { index: 0, label: l('tracker.status.new', 'Demande reçue') },
+      contacted: { index: 1, label: l('tracker.status.contacted', 'Vendeur contacté') },
+      confirmed: { index: 1, label: l('tracker.status.confirmed', 'Commande confirmée') },
+      payment_pending: { index: 2, label: l('tracker.status.paymentPending', 'Paiement en attente') },
+      paid: { index: 2, label: l('tracker.status.paid', 'Paiement confirmé') },
+      delivering: { index: 3, label: l('tracker.status.delivering', 'Livraison en cours') },
+      completed: { index: 4, label: l('tracker.status.completed', 'Commande livrée') },
+      cancelled: { index: 0, label: l('tracker.status.cancelled', 'Commande annulée'), cancelled: true }
+    };
+    return definitions[status] || definitions.new;
+  }
+
+  function latestTrackedOrder() {
+    return state.trackedOrders[state.trackedOrders.length - 1] || null;
+  }
+
+  function rememberTrackedOrder(order) {
+    state.trackedOrders = sanitizeTrackedOrders([
+      ...state.trackedOrders.filter((item) => item.reference !== order.reference),
+      order
+    ]);
+    persistTrackedOrders();
   }
 
   function orderTrackerMarkup() {
-    const tracker = currentOrderTracker();
+    const tracker = latestTrackedOrder();
     if (!tracker) return '';
     const stages = orderStageDefinitions();
-    const currentIndex = Math.max(0, stages.findIndex((stage) => stage.id === tracker.stage));
-    const current = stages[currentIndex];
-    const next = stages[currentIndex + 1] || null;
+    const presentation = orderStatusPresentation(tracker.status);
     const progress = stages.map((stage, index) => {
-      const complete = index < currentIndex;
-      const active = index === currentIndex;
+      const complete = !presentation.cancelled && index < presentation.index;
+      const active = !presentation.cancelled && index === presentation.index;
       const stateClass = complete ? ' complete' : active ? ' active' : '';
       return `<li${stateClass ? ` class="${stateClass.trim()}"` : ''}${active ? ' aria-current="step"' : ''}><span>${complete ? '<i class="fa-solid fa-check" aria-hidden="true"></i>' : index + 1}</span><small>${stage.label}</small></li>`;
     }).join('');
-    const actionLabel = next
-      ? l('tracker.next', `Passer à : ${next.label}`, { stage: next.label })
-      : l('tracker.complete', 'Commande livrée');
+    const publicNote = latestOrderDetails?.reference === tracker.reference && latestOrderDetails.publicNote
+      ? `<p class="tracker-note">${escapeAttribute(latestOrderDetails.publicNote)}</p>`
+      : '';
+    const statusError = orderStatusError
+      ? `<p class="tracker-note is-error">${escapeAttribute(orderStatusError)}</p>`
+      : '';
     return `
-      <section class="local-order-tracker" tabindex="-1" aria-label="${escapeAttribute(l('aria.orderTracking', 'Progression de la livraison'))}">
+      <section class="local-order-tracker${presentation.cancelled ? ' is-cancelled' : ''}" tabindex="-1" aria-label="${escapeAttribute(l('aria.orderTracking', 'Progression de la livraison'))}">
         <div class="local-order-tracker-head">
-          <span><small>${l('tracker.kicker', 'SUIVI LOCAL')}</small><strong>${l('tracker.reference', `Commande ${tracker.reference}`, { reference: tracker.reference })}</strong></span>
-          <em>${current.label}</em>
+          <span><small>${l('tracker.kickerServer', 'SUIVI ITEMSOUQ')}</small><strong>${l('tracker.reference', `Commande ${tracker.reference}`, { reference: tracker.reference })}</strong></span>
+          <em>${presentation.label}</em>
         </div>
-        <p>${l('tracker.current', `Étape actuelle : ${current.label}`, { stage: current.label })}</p>
+        <p>${l('tracker.current', `Étape actuelle : ${presentation.label}`, { stage: presentation.label })}</p>
         <ol>${progress}</ol>
-        <button class="btn btn-secondary btn-full" type="button" data-order-advance${next ? '' : ' disabled'}>${next ? '<i class="fa-solid fa-arrow-right" aria-hidden="true"></i>' : '<i class="fa-solid fa-circle-check" aria-hidden="true"></i>'}<span>${actionLabel}</span></button>
+        ${publicNote}${statusError}
+        <button class="btn btn-secondary btn-full tracker-refresh" type="button" data-order-refresh${orderStatusPending ? ' disabled' : ''}><i class="fa-solid fa-rotate${orderStatusPending ? ' fa-spin' : ''}" aria-hidden="true"></i><span>${orderStatusPending ? l('tracker.refreshing', 'Actualisation…') : l('tracker.refresh', 'Actualiser le suivi')}</span></button>
       </section>`;
   }
 
-  function advanceOrderTracker() {
-    const tracker = currentOrderTracker();
-    if (!tracker) return;
-    const currentIndex = ORDER_STAGE_IDS.indexOf(tracker.stage);
-    const nextStage = ORDER_STAGE_IDS[currentIndex + 1];
-    if (!nextStage) return;
-    state.orderTrackers[tracker.reference] = { stage: nextStage, updatedAt: new Date().toISOString() };
-    persistOrderTrackers();
-    updateCartUi();
-    const nextLabel = orderStageDefinitions().find((stage) => stage.id === nextStage)?.label || nextStage;
-    showToast(l('tracker.advanced', `Suivi mis à jour : ${nextLabel}.`, { stage: nextLabel }));
-    window.requestAnimationFrame(() => {
-      const advance = $('[data-order-advance]');
-      if (advance && !advance.disabled) advance.focus();
-      else $('.local-order-tracker')?.focus();
-    });
+  function renderOrderTracker() {
+    const panel = byId('order-tracker-panel');
+    if (panel) panel.innerHTML = orderTrackerMarkup();
   }
 
-  function buildWhatsAppMessage(details) {
-    const lines = state.cart.map((line) => {
-      const fruit = fruitById.get(line.id);
-      const unit = demoPrice(fruit, line.mode);
-      return `• ${fruit.name} — ${modeCopy(line.mode).long} × ${line.quantity} — ${formatMad(unit * line.quantity)}`;
-    });
+  async function refreshLatestOrderStatus({ announce = true } = {}) {
+    const tracker = latestTrackedOrder();
+    if (!tracker || orderStatusPending) return;
+    orderStatusPending = true;
+    orderStatusError = '';
+    renderOrderTracker();
+    try {
+      const payload = await requestJson(`${API.orderStatus}?reference=${encodeURIComponent(tracker.reference)}`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${tracker.token}` }
+      });
+      const order = payload?.data?.order || payload?.order;
+      if (!order || order.reference !== tracker.reference || !ORDER_STATUS_IDS.includes(order.status)) {
+        throw new Error('INVALID_ORDER_STATUS');
+      }
+      rememberTrackedOrder({ reference: tracker.reference, token: tracker.token, status: order.status });
+      latestOrderDetails = {
+        reference: tracker.reference,
+        publicNote: typeof order.publicNote === 'string' ? order.publicNote.slice(0, 240) : '',
+        updatedAt: typeof order.updatedAt === 'string' ? order.updatedAt : null
+      };
+      if (announce) showToast(l('tracker.updated', 'Le suivi de la commande est à jour.'));
+    } catch (error) {
+      orderStatusError = l('tracker.unavailable', 'Impossible d’actualiser maintenant. Le dernier statut connu reste affiché.');
+      if (announce) showToast(orderStatusError, 'warning');
+    } finally {
+      orderStatusPending = false;
+      renderOrderTracker();
+    }
+  }
+
+  function makeRequestId() {
+    if (typeof window.crypto?.randomUUID === 'function') return window.crypto.randomUUID();
+    if (!window.crypto?.getRandomValues) throw new Error('SECURE_RANDOM_UNAVAILABLE');
+    const bytes = new Uint8Array(16);
+    window.crypto.getRandomValues(bytes);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = [...bytes].map((value) => value.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  }
+
+  function normalizeCreatedOrder(payload) {
+    const order = payload?.data?.order || payload?.order;
+    if (!order || typeof order !== 'object') throw new Error('INVALID_ORDER_RESPONSE');
+    const reference = typeof order.reference === 'string' && ORDER_REFERENCE_PATTERN.test(order.reference) ? order.reference : '';
+    const statusToken = typeof order.statusToken === 'string' && STATUS_TOKEN_PATTERN.test(order.statusToken) ? order.statusToken : '';
+    const status = ORDER_STATUS_IDS.includes(order.status) ? order.status : '';
+    if (!reference || !statusToken || !status || !Array.isArray(order.items)) throw new Error('INVALID_ORDER_RESPONSE');
+    const items = order.items.map((line) => {
+      const fruitSlug = typeof line?.fruitSlug === 'string' ? line.fruitSlug : '';
+      const mode = line?.mode === 'physical' || line?.mode === 'permanent' ? line.mode : '';
+      const quantity = Number.parseInt(line?.quantity, 10);
+      const unitPriceMad = Number(line?.unitPriceMad);
+      if (!fruitById.has(fruitSlug) || !mode || !Number.isInteger(quantity) || quantity < 1 || !Number.isFinite(unitPriceMad) || unitPriceMad < 0) return null;
+      return { fruitSlug, mode, quantity, unitPriceMad };
+    }).filter(Boolean);
+    const totalMad = Number(order.totalMad);
+    if (!items.length || !Number.isFinite(totalMad) || totalMad < 0) throw new Error('INVALID_ORDER_RESPONSE');
+    return { reference, statusToken, status, items, totalMad };
+  }
+
+  async function createServerOrder(details, requestId) {
+    const paymentMethod = details.payment === 'Cash Plus' ? 'cash_plus' : 'wafacash';
+    const payload = await requestJson(API.orders, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requestId,
+        ...(state.catalogue.version ? { catalogueVersion: state.catalogue.version } : {}),
+        buyer: {
+          firstName: details.name,
+          robloxUsername: details.username,
+          paymentMethod,
+          ...(state.preferences.city ? { city: state.preferences.city } : {})
+        },
+        items: state.cart.map((line) => ({ fruitSlug: line.id, mode: line.mode, quantity: line.quantity }))
+      })
+    }, 15000);
+    return normalizeCreatedOrder(payload);
+  }
+
+  function buildWhatsAppMessage(details, order = null) {
+    const orderLines = order?.items || state.cart.map((line) => ({
+      fruitSlug: line.id,
+      mode: line.mode,
+      quantity: line.quantity,
+      unitPriceMad: priceFor(fruitById.get(line.id), line.mode)
+    }));
+    const lines = orderLines.map((line) => {
+      const fruit = fruitById.get(line.fruitSlug);
+      if (!fruit) return '';
+      return `• ${fruit.name} — ${modeCopy(line.mode).long} × ${line.quantity} — ${formatMad(line.unitPriceMad * line.quantity)}`;
+    }).filter(Boolean);
+    const referenceLine = order
+      ? l('whatsapp.checkoutIntro', `Je souhaite vérifier cette commande (${order.reference}) :`, { reference: order.reference })
+      : l('whatsapp.checkoutIntroUntracked', 'Je souhaite vérifier cette demande sans suivi :');
+    const total = order ? order.totalMad : cartTotal();
 
     return [
       l('whatsapp.checkoutGreeting', 'Salam Itemsouq 👋'),
-      l('whatsapp.checkoutIntro', `Je souhaite vérifier cette commande (${orderReference()}) :`, { reference: orderReference() }),
+      referenceLine,
       '',
       ...lines,
       '',
-      l('whatsapp.checkoutTotal', `Total démo : ${formatMad(cartTotal())}`, { total: formatMad(cartTotal()) }),
+      l('whatsapp.checkoutTotalLive', `Total affiché : ${formatMad(total)}`, { total: formatMad(total) }),
       l('whatsapp.checkoutName', `Prénom : ${details.name}`, { name: details.name }),
       l('whatsapp.checkoutUsername', `Pseudo Roblox : ${details.username}`, { username: details.username }),
       l('whatsapp.checkoutPayment', `Paiement préféré : ${details.payment}`, { payment: details.payment }),
@@ -1529,30 +1859,78 @@
     ].join('\n');
   }
 
-  function submitCheckout(event) {
+  function setCheckoutApiStatus(message = '', type = '') {
+    const status = byId('checkout-api-status');
+    if (!status) return;
+    status.hidden = !message;
+    status.className = `checkout-api-status${type ? ` is-${type}` : ''}`;
+    status.textContent = message;
+  }
+
+  async function submitCheckout(event) {
     event.preventDefault();
+    if (orderSubmissionPending) return;
     const form = event.currentTarget;
     const details = validateCheckout(form);
     if (!details) return;
+    const requestSignature = JSON.stringify({ cart: cartSignature(), details, city: state.preferences.city });
+    if (pendingOrderRequest?.signature !== requestSignature) {
+      pendingOrderRequest = { signature: requestSignature, requestId: makeRequestId() };
+    }
 
-    const message = buildWhatsAppMessage(details);
-    const handoff = document.createElement('a');
-    handoff.href = whatsappUrl(message);
-    handoff.target = '_blank';
-    handoff.rel = 'noopener';
-    handoff.hidden = true;
-    document.body.append(handoff);
-    handoff.click();
-    handoff.remove();
+    let handoffWindow = null;
+    try {
+      handoffWindow = window.open('about:blank', '_blank');
+      if (handoffWindow) handoffWindow.opener = null;
+    } catch (error) {
+      handoffWindow = null;
+    }
 
-    checkoutMessagePrepared = true;
-    updateOrderSteppers(3);
+    const submit = byId('checkout-submit');
+    const fallbackLink = byId('checkout-whatsapp-fallback');
+    orderSubmissionPending = true;
+    submit.disabled = true;
+    submit.setAttribute('aria-busy', 'true');
+    fallbackLink.hidden = true;
+    fallbackLink.removeAttribute('href');
+    setCheckoutApiStatus(l('checkout.creatingReference', 'Création de ta référence Itemsouq…'));
 
-    showToast(sellerWhatsAppNumber
-      ? l('checkout.requestReady', 'Demande préparée. Vérifie-la dans WhatsApp.')
-      : l('checkout.messageReady', 'Message préparé. Choisis le contact Itemsouq dans WhatsApp.'));
-
-    // The cart remains intact: opening WhatsApp does not mean paid or delivered.
+    try {
+      const order = await createServerOrder(details, pendingOrderRequest.requestId);
+      rememberTrackedOrder({ reference: order.reference, token: order.statusToken, status: order.status });
+      latestOrderDetails = { reference: order.reference, publicNote: '', updatedAt: null };
+      orderStatusError = '';
+      const url = whatsappUrl(buildWhatsAppMessage(details, order));
+      fallbackLink.href = url;
+      fallbackLink.hidden = false;
+      renderOrderTracker();
+      checkoutMessagePrepared = true;
+      updateOrderSteppers(3);
+      setCheckoutApiStatus(l('checkout.referenceCreated', `Référence ${order.reference} créée. WhatsApp va s’ouvrir.`, { reference: order.reference }), 'success');
+      pendingOrderRequest = null;
+      if (handoffWindow && !handoffWindow.closed) handoffWindow.location.replace(url);
+      else fallbackLink.focus();
+      showToast(l('checkout.requestReady', 'Demande enregistrée. Vérifie-la dans WhatsApp.'));
+    } catch (error) {
+      if (handoffWindow && !handoffWindow.closed) handoffWindow.close();
+      fallbackLink.href = whatsappUrl(buildWhatsAppMessage(details));
+      fallbackLink.hidden = false;
+      const conflict = ['CATALOGUE_CHANGED', 'ITEM_UNAVAILABLE', 'OWNER_REVIEW_REQUIRED'].includes(error?.code);
+      setCheckoutApiStatus(conflict
+        ? l('checkout.catalogueChanged', 'Le prix ou la disponibilité a changé. Vérifie la commande puis réessaie.')
+        : l('checkout.referenceFailed', 'La référence n’a pas pu être créée. Tu peux réessayer ou continuer sur WhatsApp sans suivi.'), 'error');
+      if (conflict) {
+        pendingOrderRequest = null;
+        await loadCatalogue();
+        renderCatalogue();
+        updateCartUi();
+      }
+      fallbackLink.focus();
+    } finally {
+      orderSubmissionPending = false;
+      submit.disabled = false;
+      submit.removeAttribute('aria-busy');
+    }
   }
 
   function toggleMobileMenu() {
@@ -1875,7 +2253,7 @@
       byId('catalogue').scrollIntoView({ behavior: reduceMotionPreference() ? 'auto' : 'smooth' });
     });
 
-    $$('.showcase-add').forEach((button) => button.addEventListener('click', () => addToCart(slugify(button.dataset.quickAdd), button.dataset.mode)));
+    $$('.showcase-add').forEach((button) => button.addEventListener('click', () => addToCart(button.dataset.quickAdd, button.dataset.mode)));
 
     $$('[data-footer-mode]').forEach((link) => link.addEventListener('click', () => {
       setMode(link.dataset.footerMode);
@@ -1943,10 +2321,11 @@
     byId('cart-items').addEventListener('click', (event) => {
       const quantity = event.target.closest('[data-quantity]');
       const remove = event.target.closest('[data-remove]');
-      const advance = event.target.closest('[data-order-advance]');
       if (quantity) changeQuantity(quantity.dataset.id, quantity.dataset.mode, Number(quantity.dataset.quantity));
       if (remove) removeFromCart(remove.dataset.remove, remove.dataset.mode);
-      if (advance) advanceOrderTracker();
+    });
+    byId('order-tracker-panel').addEventListener('click', (event) => {
+      if (event.target.closest('[data-order-refresh]')) void refreshLatestOrderStatus();
     });
 
     byId('clear-cart').addEventListener('click', () => {
@@ -2028,12 +2407,12 @@
     }));
 
     document.addEventListener('itemsouq:languagechange', () => {
+      i18n?.applyStatic(document);
       renderCatalogue();
       updateCartUi();
       if (activeQuickView) renderQuickView();
       if (!byId('compare-modal').hidden) renderCompareModal();
       if (!byId('souq-drawer').hidden) renderSouq();
-      i18n?.applyStatic(document);
       prepareStaticWhatsAppLinks();
       showToast(i18n?.getLanguage() === 'ary'
         ? l('language.changedDarija', 'Darija tkhayrat.')
@@ -2066,6 +2445,10 @@
   function validateDataset() {
     if (fruits.length !== 41) {
       console.warn(`Itemsouq: expected 41 fruits, received ${fruits.length}.`);
+    }
+    const ids = fruits.map((fruit) => fruit?.id);
+    if (ids.some((id) => typeof id !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) || new Set(ids).size !== ids.length) {
+      throw new Error('Itemsouq: fruit IDs must be unique, stable lowercase slugs.');
     }
   }
 
@@ -2126,20 +2509,26 @@
     }
   }
 
-  function init() {
+  async function init() {
     validateDataset();
     hydrateState();
+    i18n?.applyStatic(document);
     syncFilterControls();
     syncFilterLayout();
     syncSearchShortcut();
     prepareStaticWhatsAppLinks();
     initHeroEffects();
     attachEvents();
+    byId('fruit-grid')?.setAttribute('aria-busy', 'true');
+    renderCatalogueSourceStatus();
+    await loadCatalogue();
+    if (state.budget !== null && state.budget >= budgetCeiling(state.mode)) state.budget = null;
+    syncFilterControls();
     renderCatalogue();
     updateCartUi();
     initSharedLinks();
-    i18n?.applyStatic(document);
+    if (latestTrackedOrder()) void refreshLatestOrderStatus({ announce: false });
   }
 
-  init();
+  void init();
 })();

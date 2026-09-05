@@ -11,8 +11,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/style.css?v=20260902-9">
-  <link rel="stylesheet" href="assets/css/trading.css?v=20260902-9">
+  <link rel="stylesheet" href="assets/css/style.css?v=20260905-1">
+  <link rel="stylesheet" href="assets/css/trading.css?v=20260905-1">
   <link rel="stylesheet" href="assets/css/features.css?v=20260902-9">
 </head>
 <body class="trading-page">
@@ -20,7 +20,7 @@
 
   <div class="announcement trade-announcement">
     <div class="container announcement-inner">
-      <span><i class="fa-solid fa-people-arrows" aria-hidden="true"></i> <span data-i18n="trading.announcement.players">Échanges entre joueurs · Démo locale</span></span>
+      <span><i class="fa-solid fa-people-arrows" aria-hidden="true"></i> <span data-i18n="trading.announcement.players">Échanges entre joueurs · Marché partagé</span></span>
       <span class="announcement-payments" data-i18n="trading.announcement.rules">Aucun paiement · Aucun mot de passe · Coordination entre joueurs</span>
     </div>
   </div>
@@ -76,9 +76,9 @@
       <div class="trade-orb trade-orb-two" aria-hidden="true"></div>
       <div class="container trade-hero-layout">
         <div class="trade-hero-copy">
-          <div class="trade-eyebrow"><span class="live-dot"></span> <span data-i18n="trading.heroEyebrow">Communauté marocaine · Prototype</span></div>
+          <div class="trade-eyebrow"><span class="live-dot"></span> <span data-i18n="trading.heroEyebrow">Communauté marocaine · Offres partagées</span></div>
           <h1 id="trade-hero-title" data-i18n-html="trading.heroTitle">Ton fruit contre<br><span>leur meilleure offre.</span></h1>
-          <p data-i18n="trading.heroCopy">Teste le parcours d'échange : publie ce que tu proposes, indique ce que tu recherches et prépare des contre-offres — cette démo reste sur ton appareil.</p>
+          <p data-i18n="trading.heroCopy">Publie ce que tu proposes, indique ce que tu recherches et reçois les contre-offres de la communauté Itemsouq.</p>
           <div class="trade-hero-actions">
             <button class="btn btn-primary btn-large" type="button" data-open-create aria-haspopup="dialog" aria-controls="create-trade-modal" aria-expanded="false">
               <i class="fa-solid fa-plus" aria-hidden="true"></i> <span data-i18n="trading.create">Publier une offre</span>
@@ -89,7 +89,7 @@
           </div>
           <div class="trade-hero-trust" aria-label="Règles essentielles" data-i18n-aria="trading.heroRulesAria">
             <span><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> <span data-i18n="trading.trust.password">Ne partage jamais ton mot de passe</span></span>
-            <span><i class="fa-solid fa-database" aria-hidden="true"></i> <span data-i18n="trading.trust.localData">Données enregistrées sur cet appareil</span></span>
+            <span><i class="fa-solid fa-database" aria-hidden="true"></i> <span data-i18n="trading.trust.sharedData">Offres partagées avec la communauté</span></span>
           </div>
         </div>
 
@@ -123,7 +123,7 @@
 
       <div class="container trade-stats" aria-label="Résumé des échanges" data-i18n-aria="trading.statsAria">
         <div><span class="stat-icon violet"><i class="fa-solid fa-bolt" aria-hidden="true"></i></span><span><strong id="open-trades-stat">0</strong><small data-i18n="trading.stats.open">offres ouvertes</small></span></div>
-        <div><span class="stat-icon green"><i class="fa-solid fa-comments" aria-hidden="true"></i></span><span><strong id="counteroffers-stat">0</strong><small data-i18n="trading.stats.responses">réponses locales</small></span></div>
+        <div><span class="stat-icon green"><i class="fa-solid fa-comments" aria-hidden="true"></i></span><span><strong id="counteroffers-stat">0</strong><small data-i18n="trading.stats.responses">réponses communautaires</small></span></div>
         <div><span class="stat-icon amber"><i class="fa-solid fa-apple-whole" aria-hidden="true"></i></span><span><strong>41</strong><small data-i18n="trading.stats.fruits">fruits disponibles</small></span></div>
         <div><span class="stat-icon blue"><i class="fa-solid fa-location-dot" aria-hidden="true"></i></span><span><strong data-i18n="trading.stats.morocco">Maroc</strong><small data-i18n="trading.stats.community">communauté locale</small></span></div>
       </div>
@@ -140,10 +140,10 @@
           <button class="btn btn-primary" type="button" data-open-create aria-haspopup="dialog" aria-controls="create-trade-modal" aria-expanded="false"><i class="fa-solid fa-plus" aria-hidden="true"></i> <span data-i18n="trading.newOffer">Nouvelle offre</span></button>
         </div>
 
-        <div class="local-demo-banner" role="note">
-          <span class="local-demo-icon"><i class="fa-solid fa-laptop" aria-hidden="true"></i></span>
-          <div><strong data-i18n="trading.localMode">Mode démonstration locale</strong><p data-i18n="trading.localModeCopy">Les offres créées ici restent uniquement dans ce navigateur. Elles ne sont pas envoyées à d'autres joueurs.</p></div>
-          <button class="demo-reset-button" id="reset-trading-demo" type="button"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> <span data-i18n="trading.reset">Réinitialiser</span></button>
+        <div class="local-demo-banner shared-data-banner" id="trade-api-status" role="status" aria-live="polite" data-status="loading">
+          <span class="local-demo-icon"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i></span>
+          <div><strong data-api-status-title>Chargement des offres communautaires</strong><p data-api-status-copy>Itemsouq récupère les dernières offres et réponses.</p></div>
+          <button class="demo-reset-button" id="retry-trading-load" type="button" hidden><i class="fa-solid fa-rotate-right" aria-hidden="true"></i> <span data-i18n="trading.api.retry">Réessayer</span></button>
         </div>
 
         <div class="trade-tabs" aria-label="Afficher les offres" data-i18n-aria="trading.tabsAria">
@@ -218,7 +218,7 @@
 
         <div class="trade-empty" id="trade-empty" hidden>
           <span><i class="fa-solid fa-right-left" aria-hidden="true"></i></span>
-          <h3 data-i18n="trading.emptyTitle">Aucune offre dans cette vue</h3>
+          <h3 id="trade-empty-title" data-i18n="trading.emptyTitle">Aucune offre dans cette vue</h3>
           <p id="trade-empty-copy" data-i18n="trading.emptyDefault">Essaie d'autres filtres ou publie la première offre.</p>
           <button class="btn btn-secondary" id="trade-empty-action" type="button" data-i18n="trading.viewAll">Voir toutes les offres</button>
         </div>
@@ -234,12 +234,12 @@
         </div>
         <div class="trade-how-grid">
           <article><span>01</span><i class="fa-solid fa-list-check" aria-hidden="true"></i><h3 data-i18n="trading.step1Title">Publie ton offre</h3><p data-i18n="trading.step1Copy">Choisis jusqu'à quatre fruits à proposer et quatre fruits à rechercher.</p></article>
-          <article><span>02</span><i class="fa-solid fa-comments" aria-hidden="true"></i><h3 data-i18n="trading.step2Title">Simule une réponse</h3><p data-i18n="trading.step2Copy">Dans la démo, ouvre une annonce et enregistre une contre-offre locale.</p></article>
+          <article><span>02</span><i class="fa-solid fa-comments" aria-hidden="true"></i><h3 data-i18n="trading.step2Title">Reçois des réponses</h3><p data-i18n="trading.step2Copy">Les autres joueurs peuvent répondre à ton annonce avec leurs fruits et quantités.</p></article>
           <article><span>03</span><i class="fa-solid fa-gamepad" aria-hidden="true"></i><h3 data-i18n="trading.step3Title">Vérifie dans le jeu</h3><p data-i18n="trading.step3Copy">Confirme le pseudo, les objets et les quantités avant d'accepter l'échange.</p></article>
         </div>
         <div class="trade-safety-note">
           <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
-          <p><strong data-i18n="trading.safetyLabel">Rappel de sécurité :</strong> <span data-i18n="trading.safetyCopy">ne communique jamais ton mot de passe Roblox, ton PIN, un code OTP ou des informations bancaires. Itemsouq ne garantit aucune offre communautaire dans cette démonstration.</span></p>
+          <p><strong data-i18n="trading.safetyLabel">Rappel de sécurité :</strong> <span data-i18n="trading.safetyCopy">ne communique jamais ton mot de passe Roblox, ton PIN, un code OTP ou des informations bancaires. Vérifie toujours le pseudo, les fruits et les quantités dans le jeu.</span></p>
         </div>
       </div>
     </section>
@@ -252,7 +252,7 @@
           <span class="brand-mark" aria-hidden="true"><img src="assets/brand/itemsouq-mark.svg" alt="" width="64" height="64" loading="lazy"></span>
           <span class="brand-copy"><strong>ITEMSOUQ</strong><small>FRUITS MARKET</small></span>
         </a>
-        <p data-i18n="trading.footerCopy">Une démonstration de marketplace marocaine pour acheter et échanger des fruits Blox Fruits.</p>
+        <p data-i18n="trading.footerCopy">Une marketplace marocaine pour acheter et échanger des fruits Blox Fruits.</p>
       </div>
       <div>
         <h3 data-i18n="trading.footer.explore">Explorer</h3>
@@ -269,11 +269,11 @@
       </div>
       <div>
         <h3 data-i18n="trading.footer.important">Important</h3>
-        <p class="footer-small" data-i18n="trading.footer.localOnly">Démo locale uniquement. Les publications et réponses ne sont visibles que sur cet appareil.</p>
+        <p class="footer-small" data-i18n="trading.footer.shared">Les offres sont publiques. Leur gestion reste liée au navigateur qui les a publiées.</p>
       </div>
     </div>
     <div class="container footer-bottom">
-      <span data-i18n="trading.footer.copyright">© 2026 Itemsouq · Concept de démonstration</span>
+      <span data-i18n="trading.footer.copyright">© 2026 Itemsouq · Marketplace communautaire</span>
       <span data-i18n="trading.footer.disclaimer">Non affilié à Roblox ou Blox Fruits</span>
     </div>
   </footer>
@@ -298,7 +298,7 @@
 
       <form id="create-trade-form" novalidate>
         <div class="modal-body trade-form-body">
-          <div class="trade-form-notice"><i class="fa-solid fa-laptop" aria-hidden="true"></i><p><strong data-i18n="trading.localPrototype">Prototype local.</strong> <span data-i18n="trading.localPrototypeCopy">Cette publication est sauvegardée uniquement dans ton navigateur.</span></p></div>
+          <div class="trade-form-notice"><i class="fa-solid fa-globe" aria-hidden="true"></i><p><strong data-i18n="trading.sharedNotice">Publication publique.</strong> <span data-i18n="trading.sharedNoticeCopy">Ton pseudo, tes fruits et ton message seront visibles par la communauté. La clé de gestion reste uniquement dans ce navigateur.</span></p></div>
 
           <section class="trade-draft-panel" id="trade-draft-panel" aria-labelledby="trade-draft-title">
             <span class="trade-draft-icon" aria-hidden="true"><i class="fa-regular fa-file-lines"></i></span>
@@ -387,9 +387,9 @@
   <div class="sr-only" id="trade-live-region" aria-live="polite" aria-atomic="true"></div>
   <div class="sr-only" id="trade-alert-region" role="alert" aria-live="assertive" aria-atomic="true"></div>
 
-  <script src="assets/js/config.js?v=20260902-9"></script>
-  <script src="assets/js/fruits.js?v=20260902-9"></script>
-  <script src="assets/js/locale.js?v=20260902-9"></script>
-  <script src="assets/js/trading.js?v=20260902-9"></script>
+  <script src="assets/js/config.js?v=20260905-1"></script>
+  <script src="assets/js/fruits.js?v=20260905-1"></script>
+  <script src="assets/js/locale.js?v=20260905-1"></script>
+  <script src="assets/js/trading.js?v=20260905-1"></script>
 </body>
 </html>

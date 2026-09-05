@@ -1,4 +1,4 @@
-/* Itemsouq Trading — static localStorage demo */
+/* Itemsouq Trading — shared community marketplace */
 (function () {
   'use strict';
 
@@ -7,12 +7,19 @@
   const l = (key, fallback, variables) => i18n?.t(key, fallback, variables) ?? fallback;
   const language = () => i18n?.getLanguage?.() || 'fr';
   const STORAGE = {
-    trades: 'itemsouq:trading:v3:listings',
     saved: 'itemsouq:trading:v3:saved',
     draft: 'itemsouq:trading:v3:draft',
     tracker: 'itemsouq:trading:v1:tracker',
-    reported: 'itemsouq:trading:v1:reported',
-    blocked: 'itemsouq:trading:v1:blocked'
+    blocked: 'itemsouq:trading:v1:blocked',
+    ownerTokens: 'itemsouq:trading:v4:owner-tokens',
+    responseTokens: 'itemsouq:trading:v4:response-tokens'
+  };
+  const API = {
+    trades: 'api/v1/trades.php',
+    trade: 'api/v1/trade.php',
+    responses: 'api/v1/trade-responses.php',
+    tradeAction: 'api/v1/trade-action.php',
+    responseAction: 'api/v1/trade-response-action.php'
   };
   const MAX_FRUITS = 4;
   const USERNAME_PATTERN = /^[A-Za-z0-9_]{3,20}$/;
@@ -24,7 +31,8 @@
     'declined',
     'completed'
   ]);
-  const RESPONSE_OUTCOMES = new Set(['pending', 'accepted', 'declined']);
+  const RESPONSE_OUTCOMES = new Set(['pending', 'accepted', 'declined', 'withdrawn', 'removed']);
+  const TRADE_STATUSES = new Set(['open', 'matched', 'completed', 'closed', 'expired']);
   const TRACKER_STAGES = ['prepared', 'player_contacted', 'exchange_pending', 'completed'];
 
   const rarityLabels = {
@@ -58,9 +66,15 @@
     counter: new Map(),
     activeTradeId: null,
     tracker: new Map(),
-    reported: new Set(),
     blocked: new Set(),
-    lastBlockedTradeId: null
+    ownerTokens: new Map(),
+    responseTokens: new Map(),
+    responsesLoaded: new Set(),
+    responseErrors: new Map(),
+    lastBlockedTradeId: null,
+    stats: { open: 0, responses: 0 },
+    apiStatus: 'loading',
+    apiError: ''
   };
 
   let activeModal = null;
@@ -68,21 +82,8 @@
   let toastTimer = null;
   let isSubmitting = false;
   let createDraft = null;
-
-  const trustSeed = (username) => [...String(username)].reduce((total, character) => total + character.charCodeAt(0), 0);
-
-  function defaultTrust(username, owned = false) {
-    const seed = trustSeed(username);
-    const joinedYear = owned ? new Date().getFullYear() : 2021 + (seed % 4);
-    const joinedMonth = String((seed % 12) + 1).padStart(2, '0');
-    const joinedDay = String((seed % 27) + 1).padStart(2, '0');
-    return {
-      reputationPercent: owned ? 100 : 94 + (seed % 6),
-      completedTrades: owned ? 0 : 12 + (seed % 113),
-      responseMinutes: owned ? 30 : 8 + (seed % 43),
-      memberSince: owned ? new Date().toISOString().slice(0, 10) : `${joinedYear}-${joinedMonth}-${joinedDay}`
-    };
-  }
+  let pendingCreateSubmission = null;
+  let pendingResponseSubmission = null;
 
   function escapeHtml(value) {
     return String(value)
@@ -113,6 +114,67 @@
     }
   }
 
+  function storageIsWritable() {
+    const probe = 'itemsouq:trading:storage-probe';
+    try {
+      localStorage.setItem(probe, '1');
+      localStorage.removeItem(probe);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  class TradingApiError extends Error {
+    constructor(message, status = 0, code = 'request_failed', fields = null) {
+      super(message);
+      this.name = 'TradingApiError';
+      this.status = status;
+      this.code = code;
+      this.fields = fields;
+    }
+  }
+
+  async function apiRequest(url, { method = 'GET', body = null, token = '' } = {}) {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 12000);
+    const headers = { Accept: 'application/json' };
+    if (body !== null) headers['Content-Type'] = 'application/json';
+    if (token) headers.Authorization = `Bearer ${token}`;
+    try {
+      const response = await fetch(url, {
+        method,
+        headers,
+        body: body === null ? null : JSON.stringify(body),
+        credentials: 'same-origin',
+        cache: 'no-store',
+        signal: controller.signal
+      });
+      const contentType = response.headers.get('content-type') || '';
+      const payload = contentType.includes('application/json') ? await response.json() : null;
+      if (!response.ok || !payload?.ok) {
+        const error = payload?.error || {};
+        throw new TradingApiError(
+          typeof error.message === 'string' && error.message ? error.message : l('trading.api.requestFailed', 'Impossible de contacter le service Trading.'),
+          response.status,
+          typeof error.code === 'string' ? error.code : 'request_failed',
+          error.fields && typeof error.fields === 'object'
+            ? error.fields
+            : error.details && typeof error.details === 'object' ? error.details : null
+        );
+      }
+      return payload.data ?? payload;
+    } catch (error) {
+      if (error instanceof TradingApiError) throw error;
+      if (error?.name === 'AbortError') {
+        throw new TradingApiError(l('trading.api.timeout', 'Le service Trading met trop de temps à répondre.'), 0, 'timeout');
+      }
+      throw new TradingApiError(l('trading.api.unavailable', 'Le service Trading est momentanément indisponible.'), 0, 'network_error');
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }
+
   function uniqueId(prefix) {
     if (window.crypto && typeof window.crypto.randomUUID === 'function') {
       return `${prefix}-${window.crypto.randomUUID()}`;
@@ -120,112 +182,25 @@
     return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
 
-  function demoTrades() {
-    const now = Date.now();
-    const minutesAgo = (minutes) => new Date(now - minutes * 60 * 1000).toISOString();
-
-    return [
-      {
-        id: 'demo-dragon-kitsune',
-        username: 'SamirRBLX',
-        mode: 'physical',
-        status: 'open',
-        owned: false,
-        trust: { reputationPercent: 98, completedTrades: 73, responseMinutes: 12, memberSince: '2022-06-18' },
-        localInteraction: { responseId: 'counter-demo-1', state: 'counter_received', updatedAt: minutesAgo(3) },
-        offered: [{ fruitId: 'dragon', quantity: 1 }],
-        wanted: [{ fruitId: 'kitsune', quantity: 1 }, { fruitId: 'dough', quantity: 1 }],
-        note: 'Disponible ce soir. Je vérifie tous les fruits dans la fenêtre d’échange.',
-        createdAt: minutesAgo(18),
-        responses: [
-          { id: 'counter-demo-1', username: 'CasaFruit', offered: [{ fruitId: 'kitsune', quantity: 1 }], note: 'Kitsune disponible maintenant.', createdAt: minutesAgo(8), local: true, outcome: 'pending' }
-        ]
-      },
-      {
-        id: 'demo-dough-spirit',
-        username: 'Aya_Blox',
-        mode: 'physical',
-        status: 'open',
-        owned: false,
-        trust: { reputationPercent: 96, completedTrades: 41, responseMinutes: 28, memberSince: '2023-01-04' },
-        localInteraction: null,
-        offered: [{ fruitId: 'dough', quantity: 1 }, { fruitId: 'spirit', quantity: 1 }],
-        wanted: [{ fruitId: 'kitsune', quantity: 1 }],
-        note: 'Je cherche surtout Kitsune. Une contre-offre proche peut aussi m’intéresser.',
-        createdAt: minutesAgo(74),
-        responses: [
-          { id: 'counter-demo-2', username: 'MarrakechPro', offered: [{ fruitId: 'control', quantity: 1 }], note: '', createdAt: minutesAgo(42) },
-          { id: 'counter-demo-3', username: 'NoraPlayz', offered: [{ fruitId: 'kitsune', quantity: 1 }], note: 'On peut vérifier ensemble en jeu.', createdAt: minutesAgo(31) }
-        ]
-      },
-      {
-        id: 'demo-buddha-portal',
-        username: 'RachidPro',
-        mode: 'physical',
-        status: 'open',
-        owned: false,
-        trust: { reputationPercent: 99, completedTrades: 124, responseMinutes: 9, memberSince: '2021-11-20' },
-        localInteraction: null,
-        offered: [{ fruitId: 'buddha', quantity: 1 }, { fruitId: 'portal', quantity: 1 }],
-        wanted: [{ fruitId: 'dough', quantity: 1 }],
-        note: 'Échange simple entre joueurs, sans paiement.',
-        createdAt: minutesAgo(190),
-        responses: []
-      },
-      {
-        id: 'demo-permanent-buddha',
-        username: 'ImanePlays',
-        mode: 'permanent',
-        status: 'open',
-        owned: false,
-        trust: { reputationPercent: 94, completedTrades: 19, responseMinutes: 45, memberSince: '2024-02-12' },
-        localInteraction: null,
-        offered: [{ fruitId: 'buddha', quantity: 1 }],
-        wanted: [{ fruitId: 'dough', quantity: 1 }],
-        note: 'Offre permanente de démonstration. Tout doit être confirmé dans le jeu.',
-        createdAt: minutesAgo(410),
-        responses: []
-      },
-      {
-        id: 'demo-tiger-yeti',
-        username: 'FesTrader',
-        mode: 'physical',
-        status: 'completed',
-        owned: false,
-        trust: { reputationPercent: 97, completedTrades: 88, responseMinutes: 16, memberSince: '2022-09-03' },
-        localInteraction: { responseId: null, state: 'completed', updatedAt: minutesAgo(1310) },
-        offered: [{ fruitId: 'tiger', quantity: 1 }],
-        wanted: [{ fruitId: 'yeti', quantity: 1 }],
-        note: 'Exemple d’une offre déjà clôturée.',
-        createdAt: minutesAgo(1440),
-        responses: [
-          { id: 'counter-demo-4', username: 'AtlasGaming', offered: [{ fruitId: 'yeti', quantity: 1 }], note: '', createdAt: minutesAgo(1320) }
-        ]
-      }
-    ];
+  function requestId() {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+    const bytes = new Uint8Array(16);
+    window.crypto?.getRandomValues?.(bytes);
+    if (!bytes.some(Boolean)) {
+      for (let index = 0; index < bytes.length; index += 1) bytes[index] = Math.floor(Math.random() * 256);
+    }
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = [...bytes].map((value) => value.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   }
 
-  const DEMO_NOTE_KEYS = {
-    'demo-dragon-kitsune': 'trading.demo.dragonKitsune.note',
-    'demo-dough-spirit': 'trading.demo.doughSpirit.note',
-    'demo-buddha-portal': 'trading.demo.buddhaPortal.note',
-    'demo-permanent-buddha': 'trading.demo.permanentBuddha.note',
-    'demo-tiger-yeti': 'trading.demo.tigerYeti.note'
-  };
-
-  const DEMO_RESPONSE_NOTE_KEYS = {
-    'counter-demo-1': 'trading.demo.response.kitsuneNow',
-    'counter-demo-3': 'trading.demo.response.verifyInGame'
-  };
-
   function displayTradeNote(trade) {
-    const key = DEMO_NOTE_KEYS[trade.id];
-    return key ? l(key, trade.note) : trade.note;
+    return trade.note;
   }
 
   function displayResponseNote(response) {
-    const key = DEMO_RESPONSE_NOTE_KEYS[response.id];
-    return key ? l(key, response.note) : response.note;
+    return response.note;
   }
 
   function sanitizeLine(line, mode) {
@@ -271,6 +246,10 @@
     return sanitizeLines([...selection.entries()].map(([fruitId, quantity]) => ({ fruitId, quantity })), mode);
   }
 
+  function apiLines(lines) {
+    return lines.map((line) => ({ fruitSlug: line.fruitId, quantity: line.quantity }));
+  }
+
   function selectionSlots(selection) {
     if (!(selection instanceof Map)) return 0;
     return [...selection.values()].reduce((total, quantity) => total + quantity, 0);
@@ -291,45 +270,6 @@
     return Number.isFinite(parsed) ? Math.min(maximum, Math.max(minimum, parsed)) : fallback;
   }
 
-  function sanitizeTrust(input, username, owned) {
-    const fallback = defaultTrust(username, owned);
-    const source = input && typeof input === 'object' ? input : {};
-    const memberDate = new Date(source.memberSince);
-    const memberSince = Number.isNaN(memberDate.getTime()) || memberDate.getTime() > Date.now()
-      ? fallback.memberSince
-      : memberDate.toISOString().slice(0, 10);
-    return {
-      reputationPercent: clampInteger(source.reputationPercent, 0, 100, fallback.reputationPercent),
-      completedTrades: clampInteger(source.completedTrades, 0, 9999, fallback.completedTrades),
-      responseMinutes: clampInteger(source.responseMinutes, 1, 1440, fallback.responseMinutes),
-      memberSince
-    };
-  }
-
-  function sanitizeLocalInteraction(input, trade) {
-    const seededDemoState = trade.id === 'demo-dragon-kitsune' && trade.responses.length
-      ? 'counter_received'
-      : null;
-    const fallbackState = trade.status === 'completed'
-      ? 'completed'
-      : trade.owned
-        ? trade.responses.length ? 'counter_received' : 'awaiting_response'
-        : seededDemoState;
-    const source = input && typeof input === 'object' ? input : null;
-    const stateName = source && INTERACTION_STATES.has(source.state) ? source.state : fallbackState;
-    if (!stateName) return null;
-    const responseIds = new Set(trade.responses.map((response) => response.id));
-    const responseId = source && typeof source.responseId === 'string' && responseIds.has(source.responseId)
-      ? source.responseId
-      : seededDemoState === 'counter_received' ? trade.responses[0].id : null;
-    const updatedDate = new Date(source?.updatedAt || trade.createdAt);
-    return {
-      responseId,
-      state: trade.status === 'completed' ? 'completed' : stateName,
-      updatedAt: Number.isNaN(updatedDate.getTime()) ? trade.createdAt : updatedDate.toISOString()
-    };
-  }
-
   function sanitizeResponse(response, mode) {
     if (!response || typeof response !== 'object') return null;
     const id = typeof response.id === 'string' && /^[A-Za-z0-9_-]{1,90}$/.test(response.id) ? response.id : '';
@@ -343,8 +283,9 @@
       offered,
       note: typeof response.note === 'string' ? response.note.trim().slice(0, 160) : '',
       createdAt: date.toISOString(),
-      local: Boolean(response.local),
-      outcome: RESPONSE_OUTCOMES.has(response.outcome) ? response.outcome : 'pending'
+      updatedAt: Number.isNaN(new Date(response.updatedAt).getTime()) ? date.toISOString() : new Date(response.updatedAt).toISOString(),
+      outcome: RESPONSE_OUTCOMES.has(response.outcome) ? response.outcome : 'pending',
+      version: clampInteger(response.version, 1, 2147483647, 1)
     };
   }
 
@@ -353,7 +294,7 @@
     const id = typeof trade.id === 'string' && /^[A-Za-z0-9_-]{1,90}$/.test(trade.id) ? trade.id : '';
     const username = sanitizeUsername(trade.username);
     const mode = trade.mode === 'permanent' ? 'permanent' : trade.mode === 'physical' ? 'physical' : '';
-    const status = trade.status === 'completed' ? 'completed' : trade.status === 'open' ? 'open' : '';
+    const status = TRADE_STATUSES.has(trade.status) ? trade.status : '';
     const date = new Date(trade.createdAt);
     if (!id || !username || !mode || !status || Number.isNaN(date.getTime())) return null;
 
@@ -382,15 +323,15 @@
       username,
       mode,
       status,
-      owned: Boolean(trade.owned),
+      owned: state.ownerTokens.has(id),
       offered,
       wanted,
       note: typeof trade.note === 'string' ? trade.note.trim().slice(0, 180) : '',
       createdAt: date.toISOString(),
       responses,
-      trust: sanitizeTrust(trade.trust, username, Boolean(trade.owned))
+      responseCount: clampInteger(trade.responseCount, responses.length, 999999, responses.length),
+      version: clampInteger(trade.version, 1, 2147483647, 1)
     };
-    normalized.localInteraction = sanitizeLocalInteraction(trade.localInteraction, normalized);
     return normalized;
   }
 
@@ -426,17 +367,17 @@
     return { username, mode, offered, wanted, note, savedAt: savedAt.toISOString() };
   }
 
-  function sanitizeIdSet(input, validIds) {
+  function sanitizeIdSet(input, validIds = null) {
     return new Set(Array.isArray(input)
-      ? input.filter((id) => typeof id === 'string' && validIds.has(id)).slice(0, 100)
+      ? input.filter((id) => typeof id === 'string' && /^[A-Za-z0-9_-]{1,90}$/.test(id) && (!validIds || validIds.has(id))).slice(0, 250)
       : []);
   }
 
-  function sanitizeTracker(input, validIds) {
+  function sanitizeTracker(input, validIds = null) {
     const result = new Map();
     if (!input || typeof input !== 'object' || Array.isArray(input)) return result;
     for (const [tradeId, record] of Object.entries(input)) {
-      if (!validIds.has(tradeId) || !record || typeof record !== 'object') continue;
+      if (!/^[A-Za-z0-9_-]{1,90}$/.test(tradeId) || (validIds && !validIds.has(tradeId)) || !record || typeof record !== 'object') continue;
       const stage = TRACKER_STAGES.includes(record.stage) ? record.stage : '';
       const updatedAt = new Date(record.updatedAt);
       if (!stage || Number.isNaN(updatedAt.getTime())) continue;
@@ -446,41 +387,45 @@
     return result;
   }
 
-  function hydrateState() {
-    const storedTrades = safeJsonRead(STORAGE.trades, null);
-    const cleanTrades = sanitizeTrades(storedTrades);
-    const fallbackTrades = sanitizeTrades(demoTrades());
-    state.trades = Array.isArray(storedTrades)
-      ? storedTrades.length && !cleanTrades.length ? fallbackTrades : cleanTrades
-      : fallbackTrades;
+  function sanitizeOwnerTokens(input) {
+    const result = new Map();
+    if (!input || typeof input !== 'object' || Array.isArray(input)) return result;
+    for (const [tradeId, token] of Object.entries(input)) {
+      if (!/^[A-Za-z0-9_-]{1,90}$/.test(tradeId)) continue;
+      if (typeof token !== 'string' || !/^[A-Za-z0-9_-]{32,180}$/.test(token)) continue;
+      result.set(tradeId, token);
+      if (result.size === 250) break;
+    }
+    return result;
+  }
 
-    const storedSaved = safeJsonRead(STORAGE.saved, []);
-    const validIds = new Set(state.trades.map((trade) => trade.id));
-    state.saved = sanitizeIdSet(storedSaved, validIds);
-    state.reported = sanitizeIdSet(safeJsonRead(STORAGE.reported, []), validIds);
-    state.blocked = sanitizeIdSet(safeJsonRead(STORAGE.blocked, []), validIds);
-    state.tracker = sanitizeTracker(safeJsonRead(STORAGE.tracker, {}), validIds);
-    state.trades.forEach((trade) => {
-      const tracker = state.tracker.get(trade.id);
-      if (trade.status === 'completed') {
-        trade.localInteraction = { responseId: trade.localInteraction?.responseId || null, state: 'completed', updatedAt: trade.localInteraction?.updatedAt || trade.createdAt };
-        state.tracker.set(trade.id, { stage: 'completed', updatedAt: tracker?.updatedAt || trade.createdAt });
-      } else if (tracker?.stage === 'completed') {
-        trade.localInteraction = { responseId: trade.localInteraction?.responseId || null, state: 'completed', updatedAt: tracker.updatedAt };
-        if (trade.owned) trade.status = 'completed';
-      }
-    });
+  function sanitizeResponseTokens(input) {
+    const result = new Map();
+    if (!input || typeof input !== 'object' || Array.isArray(input)) return result;
+    for (const [responseId, record] of Object.entries(input)) {
+      if (!/^[A-Za-z0-9_-]{1,90}$/.test(responseId) || !record || typeof record !== 'object') continue;
+      if (typeof record.tradeId !== 'string' || !/^[A-Za-z0-9_-]{1,90}$/.test(record.tradeId)) continue;
+      if (typeof record.token !== 'string' || !/^[A-Za-z0-9_-]{32,180}$/.test(record.token)) continue;
+      result.set(responseId, { tradeId: record.tradeId, token: record.token });
+      if (result.size === 500) break;
+    }
+    return result;
+  }
+
+  function hydrateState() {
+    state.ownerTokens = sanitizeOwnerTokens(safeJsonRead(STORAGE.ownerTokens, {}));
+    state.responseTokens = sanitizeResponseTokens(safeJsonRead(STORAGE.responseTokens, {}));
+    state.saved = sanitizeIdSet(safeJsonRead(STORAGE.saved, []));
+    state.blocked = sanitizeIdSet(safeJsonRead(STORAGE.blocked, []));
+    state.tracker = sanitizeTracker(safeJsonRead(STORAGE.tracker, {}));
 
     createDraft = sanitizeDraft(safeJsonRead(STORAGE.draft, null));
 
-    persistTrades();
     persistSaved();
     persistModeration();
     persistTracker();
-  }
-
-  function persistTrades() {
-    safeJsonWrite(STORAGE.trades, state.trades);
+    persistOwnerTokens();
+    persistResponseTokens();
   }
 
   function persistSaved() {
@@ -488,12 +433,19 @@
   }
 
   function persistModeration() {
-    safeJsonWrite(STORAGE.reported, [...state.reported]);
     safeJsonWrite(STORAGE.blocked, [...state.blocked]);
   }
 
   function persistTracker() {
     safeJsonWrite(STORAGE.tracker, Object.fromEntries(state.tracker));
+  }
+
+  function persistOwnerTokens() {
+    return safeJsonWrite(STORAGE.ownerTokens, Object.fromEntries(state.ownerTokens));
+  }
+
+  function persistResponseTokens() {
+    return safeJsonWrite(STORAGE.responseTokens, Object.fromEntries(state.responseTokens));
   }
 
   function fruitImagePath(fruit) {
@@ -549,19 +501,22 @@
     }).format(new Date(isoDate));
   }
 
-  function accountAge(memberSince) {
-    const joined = new Date(memberSince);
-    const months = Math.max(0, Math.floor((Date.now() - joined.getTime()) / (30.4375 * 24 * 60 * 60 * 1000)));
-    if (months < 1) return l('trading.trust.ageNew', 'Nouveau');
-    if (months < 12) return l('trading.trust.ageMonths', `${months} mois`, { count: months });
-    const years = Math.floor(months / 12);
-    return l('trading.trust.ageYears', `${years} an${years > 1 ? 's' : ''}`, { count: years });
-  }
-
   function interactionState(trade) {
     if (trade.status === 'completed') return 'completed';
-    if (trade.localInteraction && INTERACTION_STATES.has(trade.localInteraction.state)) return trade.localInteraction.state;
-    if (trade.owned) return trade.responses.length ? 'counter_received' : 'awaiting_response';
+    if (trade.owned) {
+      if (trade.responses.some((response) => response.outcome === 'accepted')) return 'accepted';
+      if (trade.responses.some((response) => response.outcome === 'pending')) return 'counter_received';
+      return 'awaiting_response';
+    }
+    const responseIds = new Set([...state.responseTokens.entries()]
+      .filter(([, record]) => record.tradeId === trade.id)
+      .map(([responseId]) => responseId));
+    if (!responseIds.size) return null;
+    const ownedResponses = trade.responses.filter((response) => responseIds.has(response.id));
+    if (!ownedResponses.length && !state.responsesLoaded.has(trade.id)) return 'offer_sent';
+    if (ownedResponses.some((response) => response.outcome === 'accepted')) return 'accepted';
+    if (ownedResponses.some((response) => response.outcome === 'pending')) return 'offer_sent';
+    if (ownedResponses.some((response) => response.outcome === 'declined')) return 'declined';
     return null;
   }
 
@@ -585,28 +540,30 @@
   }
 
   function trustMarkup(trade, detail = false) {
-    const trust = trade.trust || defaultTrust(trade.username, trade.owned);
-    const reported = state.reported.has(trade.id);
-    const profileLabel = l('trading.trust.profileAria', `Profil de confiance de ${trade.username}`, { username: trade.username });
+    const profileLabel = l('trading.community.profileAria', `Actions pour l'offre de ${trade.username}`, { username: trade.username });
     const moderation = trade.owned ? '' : `
       <div class="trade-trust-actions">
-        <button type="button" class="trade-trust-action report${reported ? ' active' : ''}" data-report-trade="${escapeHtml(trade.id)}" aria-pressed="${reported}" aria-label="${escapeHtml(reported
-          ? l('trading.moderation.reportedAria', `Retirer le signalement local de ${trade.username}`, { username: trade.username })
-          : l('trading.moderation.reportAria', `Signaler le profil de ${trade.username}`, { username: trade.username }))}"><i class="fa-${reported ? 'solid' : 'regular'} fa-flag" aria-hidden="true"></i><span>${escapeHtml(reported
-            ? l('trading.moderation.reported', 'Signalé')
-            : l('trading.moderation.report', 'Signaler'))}</span></button>
         <button type="button" class="trade-trust-action block" data-block-trade="${escapeHtml(trade.id)}" aria-label="${escapeHtml(l('trading.moderation.blockAria', `Masquer le profil de ${trade.username} sur cet appareil`, { username: trade.username }))}"><i class="fa-solid fa-user-slash" aria-hidden="true"></i><span>${escapeHtml(l('trading.moderation.block', 'Masquer'))}</span></button>
       </div>`;
     return `
       <section class="trade-trust${detail ? ' is-detail' : ''}" aria-label="${escapeHtml(profileLabel)}">
-        <div class="trade-trust-metrics">
-          <span class="trade-trust-metric"><i class="fa-solid fa-star" aria-hidden="true"></i><span><strong>${trust.reputationPercent}%</strong><small>${escapeHtml(l('trading.trust.reputation', 'Réputation'))}</small></span></span>
-          <span class="trade-trust-metric"><i class="fa-solid fa-handshake" aria-hidden="true"></i><span><strong>${formatNumber(trust.completedTrades)}</strong><small>${escapeHtml(l('trading.trust.completedTrades', 'Échanges réussis'))}</small></span></span>
-          <span class="trade-trust-metric"><i class="fa-solid fa-bolt" aria-hidden="true"></i><span><strong>${escapeHtml(l('trading.trust.responseValue', `≈ ${trust.responseMinutes} min`, { count: trust.responseMinutes }))}</strong><small>${escapeHtml(l('trading.trust.responseTime', 'Temps de réponse'))}</small></span></span>
-          <span class="trade-trust-metric"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i><span><strong>${escapeHtml(accountAge(trust.memberSince))}</strong><small>${escapeHtml(l('trading.trust.accountAge', 'Ancienneté'))}</small></span></span>
+        <div class="trade-community-meta">
+          <i class="fa-solid fa-users" aria-hidden="true"></i>
+          <span><strong>${escapeHtml(trade.owned ? l('trading.community.owned', 'Offre gérée sur cet appareil') : l('trading.community.public', 'Offre publique communautaire'))}</strong><small>${escapeHtml(l('trading.community.unverified', 'Pseudo Roblox non vérifié · vérifie tout dans le jeu'))}</small></span>
         </div>
         ${moderation}
       </section>`;
+  }
+
+  function tradeStatusMeta(status) {
+    const statuses = {
+      open: { key: 'trading.status.open', fallback: 'Ouverte', className: '' },
+      matched: { key: 'trading.status.matched', fallback: 'Accord trouvé', className: ' matched' },
+      completed: { key: 'trading.status.completed', fallback: 'Terminée', className: ' completed' },
+      closed: { key: 'trading.status.closed', fallback: 'Fermée', className: ' completed' },
+      expired: { key: 'trading.status.expired', fallback: 'Expirée', className: ' completed' }
+    };
+    return statuses[status] || statuses.closed;
   }
 
   function primaryTradeAction(trade) {
@@ -720,7 +677,7 @@
   }
 
   function shouldShowTracker(trade) {
-    return trade.owned || Boolean(trade.localInteraction) || state.tracker.has(trade.id);
+    return trade.owned || Boolean(interactionState(trade)) || state.tracker.has(trade.id);
   }
 
   function trackerMarkup(trade) {
@@ -773,7 +730,7 @@
 
     result = [...result].sort((a, b) => {
       if (state.sort === 'oldest') return new Date(a.createdAt) - new Date(b.createdAt) || a.id.localeCompare(b.id);
-      if (state.sort === 'response-desc') return b.responses.length - a.responses.length || new Date(b.createdAt) - new Date(a.createdAt);
+      if (state.sort === 'response-desc') return b.responseCount - a.responseCount || new Date(b.createdAt) - new Date(a.createdAt);
       if (state.sort === 'value-desc') return linesValue(b.offered, b.mode) - linesValue(a.offered, a.mode) || new Date(b.createdAt) - new Date(a.createdAt);
       return new Date(b.createdAt) - new Date(a.createdAt) || a.id.localeCompare(b.id);
     });
@@ -783,8 +740,9 @@
 
   function tradeCard(trade) {
     const mode = modeCopy(trade.mode);
+    const status = tradeStatusMeta(trade.status);
     const saved = state.saved.has(trade.id);
-    const responses = trade.responses.length;
+    const responses = trade.responseCount;
     const primaryAction = primaryTradeAction(trade);
     const headingId = `trade-title-${trade.id}`;
     return `
@@ -794,7 +752,7 @@
           <div class="trade-card-user"><h3 id="${escapeHtml(headingId)}">${escapeHtml(trade.username)}</h3><small title="${escapeHtml(fullDate(trade.createdAt))}">${escapeHtml(formatRelative(trade.createdAt))}</small></div>
           <span class="trade-card-head-meta">
             <span class="trade-card-format"><i class="fa-solid ${mode.icon}" aria-hidden="true"></i>${mode.label}</span>
-            <span class="trade-status${trade.status === 'completed' ? ' completed' : ''}"><i class="fa-solid fa-circle" aria-hidden="true"></i>${trade.status === 'completed' ? l('trading.status.completed', 'Terminée') : l('trading.status.open', 'Ouverte')}</span>
+            <span class="trade-status${status.className}"><i class="fa-solid fa-circle" aria-hidden="true"></i>${escapeHtml(l(status.key, status.fallback))}</span>
           </span>
           <button class="trade-save-button${saved ? ' active' : ''}" type="button" data-save-trade="${escapeHtml(trade.id)}" aria-label="${escapeHtml(saved
             ? l('trading.saved.removeAria', `Retirer l'offre de ${trade.username} des sauvegardées`, { username: trade.username })
@@ -824,16 +782,14 @@
   function updateCounts(filteredCount) {
     const visibleTrades = state.trades.filter((trade) => !state.blocked.has(trade.id));
     const mine = visibleTrades.filter((trade) => trade.owned).length;
-    const open = visibleTrades.filter((trade) => trade.status === 'open').length;
-    const counteroffers = visibleTrades.reduce((total, trade) => total + trade.responses.length, 0);
     byId('all-trades-count').textContent = visibleTrades.length;
     byId('my-trades-count').textContent = mine;
     byId('saved-trades-count').textContent = visibleTrades.filter((trade) => state.saved.has(trade.id)).length;
-    byId('open-trades-stat').textContent = open;
-    byId('counteroffers-stat').textContent = counteroffers;
+    byId('open-trades-stat').textContent = state.stats.open;
+    byId('counteroffers-stat').textContent = state.stats.responses;
     byId('trade-results-count').textContent = filteredCount === 1
-      ? l('trading.results.one', '1 offre affichée · données locales', { count: filteredCount })
-      : l('trading.results.many', `${filteredCount} offres affichées · données locales`, { count: filteredCount });
+      ? l('trading.results.one', '1 offre communautaire affichée', { count: filteredCount })
+      : l('trading.results.many', `${filteredCount} offres communautaires affichées`, { count: filteredCount });
   }
 
   function hasActiveFilters() {
@@ -854,7 +810,123 @@
     }
   }
 
+  function renderApiStatus() {
+    const banner = byId('trade-api-status');
+    if (!banner) return;
+    const title = $('[data-api-status-title]', banner);
+    const copy = $('[data-api-status-copy]', banner);
+    const retry = byId('retry-trading-load');
+    const icon = $('.local-demo-icon i', banner);
+    banner.dataset.status = state.apiStatus;
+    if (state.apiStatus === 'loading') {
+      title.textContent = l('trading.api.loadingTitle', 'Chargement des offres communautaires');
+      copy.textContent = l('trading.api.loadingCopy', 'Itemsouq récupère les dernières offres et réponses.');
+      icon.className = 'fa-solid fa-spinner fa-spin';
+      retry.hidden = true;
+    } else if (state.apiStatus === 'error') {
+      title.textContent = l('trading.api.errorTitle', 'Le marché Trading est indisponible');
+      copy.textContent = state.apiError || l('trading.api.errorCopy', 'Réessaie dans quelques instants. Aucun faux contenu ne sera affiché.');
+      icon.className = 'fa-solid fa-triangle-exclamation';
+      retry.hidden = false;
+    } else {
+      title.textContent = l('trading.api.liveTitle', 'Marché communautaire partagé');
+      copy.textContent = l('trading.api.liveCopy', 'Les offres et réponses sont enregistrées par Itemsouq et visibles par les autres joueurs.');
+      icon.className = 'fa-solid fa-cloud';
+      retry.hidden = true;
+    }
+  }
+
+  async function loadTrades() {
+    state.apiStatus = 'loading';
+    state.apiError = '';
+    renderApiStatus();
+    renderTrades();
+    try {
+      const data = await apiRequest(`${API.trades}?status=all&limit=100`);
+      const source = Array.isArray(data?.trades) ? data.trades : [];
+      state.trades = sanitizeTrades(source);
+      state.stats = {
+        open: clampInteger(data?.stats?.open, 0, 999999999, state.trades.filter((trade) => trade.status === 'open').length),
+        responses: clampInteger(data?.stats?.responses, 0, 999999999, state.trades.reduce((total, trade) => total + trade.responseCount, 0))
+      };
+      state.responsesLoaded = new Set(source
+        .filter((trade) => Array.isArray(trade?.responses))
+        .map((trade) => trade.id));
+      state.responseErrors.clear();
+      state.apiStatus = 'ready';
+    } catch (error) {
+      state.trades = [];
+      state.stats = { open: 0, responses: 0 };
+      state.apiStatus = 'error';
+      state.apiError = error.message;
+    }
+    renderApiStatus();
+    renderTrades();
+  }
+
+  function replaceTrade(rawTrade) {
+    const clean = sanitizeTrade(rawTrade);
+    if (!clean) throw new TradingApiError(l('trading.api.invalidResponse', 'Le serveur a renvoyé une offre invalide.'), 0, 'invalid_response');
+    const index = state.trades.findIndex((trade) => trade.id === clean.id);
+    if (index === -1) state.trades.unshift(clean);
+    else state.trades[index] = clean;
+    return clean;
+  }
+
+  async function loadTradeResponses(tradeId, { quiet = false } = {}) {
+    const trade = state.trades.find((item) => item.id === tradeId);
+    if (!trade) return false;
+    if (!quiet) {
+      state.responseErrors.delete(tradeId);
+      renderTradeDetail();
+    }
+    try {
+      const data = await apiRequest(`${API.responses}?tradeId=${encodeURIComponent(tradeId)}`);
+      const source = Array.isArray(data?.responses) ? data.responses : [];
+      trade.responses = source.map((response) => sanitizeResponse(response, trade.mode)).filter(Boolean);
+      trade.responseCount = clampInteger(data?.responseCount, trade.responses.length, 999999, trade.responses.length);
+      if (data?.trade && typeof data.trade === 'object') {
+        data.trade.responses = trade.responses;
+        data.trade.responseCount = trade.responseCount;
+        replaceTrade(data.trade);
+      }
+      state.responsesLoaded.add(tradeId);
+      state.responseErrors.delete(tradeId);
+      return true;
+    } catch (error) {
+      state.responseErrors.set(tradeId, error.message);
+      return false;
+    } finally {
+      if (state.activeTradeId === tradeId) renderTradeDetail();
+      renderTrades();
+    }
+  }
+
   function renderTrades() {
+    if (state.apiStatus === 'loading' && !state.trades.length) {
+      byId('trade-grid').innerHTML = '';
+      byId('trade-grid').hidden = true;
+      byId('trade-empty').hidden = false;
+      byId('trade-empty-title').textContent = l('trading.api.loadingTitle', 'Chargement des offres communautaires');
+      byId('trade-empty-copy').textContent = l('trading.api.loadingCopy', 'Itemsouq récupère les dernières offres et réponses.');
+      byId('trade-empty-action').hidden = true;
+      updateCounts(0);
+      return;
+    }
+    if (state.apiStatus === 'error' && !state.trades.length) {
+      byId('trade-grid').innerHTML = '';
+      byId('trade-grid').hidden = true;
+      byId('trade-empty').hidden = false;
+      byId('trade-empty-title').textContent = l('trading.api.errorTitle', 'Le marché Trading est indisponible');
+      byId('trade-empty-copy').textContent = state.apiError || l('trading.api.errorCopy', 'Réessaie dans quelques instants.');
+      byId('trade-empty-action').hidden = false;
+      byId('trade-empty-action').textContent = l('trading.api.retry', 'Réessayer');
+      byId('trade-empty-action').dataset.emptyMode = 'retry';
+      updateCounts(0);
+      return;
+    }
+    byId('trade-empty-action').hidden = false;
+    byId('trade-empty-title').textContent = l('trading.emptyTitle', 'Aucune offre dans cette vue');
     const result = filteredTrades();
     byId('trade-grid').innerHTML = result.map(tradeCard).join('');
     byId('trade-grid').hidden = !result.length;
@@ -1451,40 +1523,61 @@
     return !errors.length;
   }
 
-  function submitCreate(event) {
+  async function submitCreate(event) {
     event.preventDefault();
     if (isSubmitting || !validateCreateForm()) return;
+    if (!storageIsWritable()) {
+      showToast(l('trading.api.storageRequired', "Le stockage du navigateur doit être disponible pour conserver ta clé de gestion."), 'warning');
+      return;
+    }
     isSubmitting = true;
     setFormBusy(event.currentTarget, true, l('trading.feedback.publishing', 'Publication…'));
     const mode = byId('trade-mode').value === 'permanent' ? 'permanent' : 'physical';
-    const trade = {
-      id: uniqueId('trade'),
+    const payload = {
       username: byId('trade-username').value.trim(),
       mode,
-      status: 'open',
-      owned: true,
-      trust: defaultTrust(byId('trade-username').value.trim(), true),
-      localInteraction: { responseId: null, state: 'awaiting_response', updatedAt: new Date().toISOString() },
-      offered: selectionToLines(state.create.offered, mode),
-      wanted: selectionToLines(state.create.wanted, mode),
-      note: byId('trade-note').value.trim().slice(0, 180),
-      createdAt: new Date().toISOString(),
-      responses: []
+      offered: apiLines(selectionToLines(state.create.offered, mode)),
+      wanted: apiLines(selectionToLines(state.create.wanted, mode)),
+      note: byId('trade-note').value.trim().slice(0, 180)
     };
-    state.trades.unshift(trade);
-    state.tracker.set(trade.id, { stage: 'prepared', updatedAt: new Date().toISOString() });
-    persistTrades();
-    persistTracker();
-    removeCreateDraft(false);
-    resetFilters();
-    resetCreateForm();
-    closeCreate();
-    showToast(l('trading.feedback.published', 'Ton offre a été ajoutée à cette démo locale.'));
-    announce(l('trading.feedback.publishedAnnouncement', 'Offre publiée localement.'));
-    window.setTimeout(() => {
+    const fingerprint = JSON.stringify(payload);
+    if (!pendingCreateSubmission || pendingCreateSubmission.fingerprint !== fingerprint) {
+      pendingCreateSubmission = { requestId: requestId(), fingerprint };
+    }
+    payload.requestId = pendingCreateSubmission.requestId;
+    try {
+      const data = await apiRequest(API.trades, { method: 'POST', body: payload });
+      const token = typeof data?.manageToken === 'string' ? data.manageToken : '';
+      const rawTrade = data?.trade;
+      if (!rawTrade || !/^[A-Za-z0-9_-]{32,180}$/.test(token)) {
+        throw new TradingApiError(l('trading.api.invalidResponse', 'Le serveur a renvoyé une réponse invalide.'), 0, 'invalid_response');
+      }
+      state.ownerTokens.set(rawTrade.id, token);
+      if (!persistOwnerTokens()) {
+        state.ownerTokens.delete(rawTrade.id);
+        throw new TradingApiError(l('trading.api.tokenSaveFailed', "L'offre a été publiée, mais sa clé de gestion n'a pas pu être sauvegardée. Contacte Itemsouq avant de fermer cette page."), 0, 'token_storage_failed');
+      }
+      const trade = replaceTrade(rawTrade);
+      trade.owned = true;
+      trade.responses = [];
+      trade.responseCount = 0;
+      state.stats.open += 1;
+      state.responsesLoaded.add(trade.id);
+      pendingCreateSubmission = null;
+      state.tracker.set(trade.id, { stage: 'prepared', updatedAt: new Date().toISOString() });
+      persistTracker();
+      removeCreateDraft(false);
+      resetFilters();
+      resetCreateForm();
+      closeCreate();
+      showToast(l('trading.feedback.published', 'Ton offre est maintenant visible par la communauté.'));
+      announce(l('trading.feedback.publishedAnnouncement', 'Offre communautaire publiée.'));
+    } catch (error) {
+      showToast(error.message || l('trading.api.requestFailed', "Impossible de publier l'offre."), 'warning');
+    } finally {
       isSubmitting = false;
       setFormBusy(byId('create-trade-form'), false, '');
-    }, 0);
+    }
   }
 
   function canRespondToTrade(trade) {
@@ -1497,13 +1590,21 @@
   function responseOutcomeMeta(outcome) {
     if (outcome === 'accepted') return { key: 'trading.response.accepted', fallback: 'Acceptée', icon: 'fa-check' };
     if (outcome === 'declined') return { key: 'trading.response.declined', fallback: 'Refusée', icon: 'fa-xmark' };
+    if (outcome === 'withdrawn') return { key: 'trading.response.withdrawn', fallback: 'Retirée', icon: 'fa-ban' };
     return { key: 'trading.response.pending', fallback: 'À examiner', icon: 'fa-clock' };
   }
 
   function detailMarkup(trade) {
     const mode = modeCopy(trade.mode);
+    const status = tradeStatusMeta(trade.status);
     const history = trade.responses.slice(-5).reverse();
-    const responseMarkup = history.length
+    const responsesReady = state.responsesLoaded.has(trade.id);
+    const responseError = state.responseErrors.get(trade.id);
+    const responseMarkup = responseError
+      ? `<div class="counter-empty is-error"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><p>${escapeHtml(responseError)}</p><button class="btn btn-secondary" type="button" data-retry-responses>${escapeHtml(l('trading.api.retry', 'Réessayer'))}</button></div>`
+      : !responsesReady
+        ? `<div class="counter-empty"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i><p>${escapeHtml(l('trading.response.loading', 'Chargement des réponses…'))}</p></div>`
+        : history.length
       ? `<div class="counter-list">${history.map((response) => {
           const outcome = responseOutcomeMeta(response.outcome);
           const fruitNames = response.offered.map((line) => {
@@ -1528,7 +1629,7 @@
             ${actions}
           </div>`;
         }).join('')}</div>`
-      : `<div class="counter-empty"><i class="fa-regular fa-comments" aria-hidden="true"></i><p>${escapeHtml(l('trading.response.none', 'Aucune contre-offre locale pour le moment.'))}</p></div>`;
+      : `<div class="counter-empty"><i class="fa-regular fa-comments" aria-hidden="true"></i><p>${escapeHtml(l('trading.response.none', 'Aucune contre-offre pour le moment.'))}</p></div>`;
 
     return `
       <div class="detail-owner">
@@ -1538,7 +1639,7 @@
         }))}</small></span>
         <span class="detail-owner-badges">
           <span class="trade-card-format"><i class="fa-solid ${mode.icon}" aria-hidden="true"></i>${mode.label}</span>
-          <span class="trade-status${trade.status === 'completed' ? ' completed' : ''}"><i class="fa-solid fa-circle" aria-hidden="true"></i>${trade.status === 'completed' ? l('trading.status.completed', 'Terminée') : l('trading.status.open', 'Ouverte')}</span>
+          <span class="trade-status${status.className}"><i class="fa-solid fa-circle" aria-hidden="true"></i>${escapeHtml(l(status.key, status.fallback))}</span>
         </span>
       </div>
       ${trustMarkup(trade, true)}
@@ -1553,8 +1654,8 @@
       ${canRespondToTrade(trade) ? counterFormMarkup(trade) : ''}
       ${trackerMarkup(trade)}
       <section class="counteroffer-history" aria-labelledby="counter-history-title">
-        <h3 id="counter-history-title">${escapeHtml(l('trading.response.title', `Réponses locales (${trade.responses.length})`, { count: trade.responses.length }))}</h3>
-        <p>${escapeHtml(l('trading.response.localCopy', "Ces réponses simulent l'activité sur cet appareil ; elles ne sont pas envoyées au joueur."))}</p>
+        <h3 id="counter-history-title">${escapeHtml(l('trading.response.title', `Réponses communautaires (${trade.responseCount})`, { count: trade.responseCount }))}</h3>
+        <p>${escapeHtml(l('trading.response.sharedCopy', "Les réponses sont partagées avec la communauté. Le propriétaire de l'offre peut les accepter ou les refuser."))}</p>
         ${responseMarkup}
       </section>`;
   }
@@ -1570,7 +1671,7 @@
     return `
       <section class="counteroffer-panel" aria-labelledby="counteroffer-title" tabindex="-1">
         <h3 id="counteroffer-title">${escapeHtml(title)}</h3>
-        <p>${escapeHtml(l('trading.counter.copy', "Indique ton pseudo et ce que tu proposes. Rien n'est envoyé hors de ce navigateur."))}</p>
+        <p>${escapeHtml(l('trading.counter.copy', "Indique ton pseudo et ce que tu proposes. Ta réponse sera visible par la communauté."))}</p>
         <form class="counteroffer-form" id="counteroffer-form" novalidate>
           <div class="form-grid">
             <div class="field-group">
@@ -1599,9 +1700,10 @@
   }
 
   function detailFooter(trade) {
+    const canComplete = ['open', 'matched'].includes(trade.status);
     const ownerActions = trade.owned
       ? `<div class="detail-owner-actions">
-          <button class="btn btn-secondary" type="button" data-owner-status="${trade.status === 'open' ? 'completed' : 'open'}"><i class="fa-solid ${trade.status === 'open' ? 'fa-circle-check' : 'fa-rotate-left'}" aria-hidden="true"></i>${trade.status === 'open' ? escapeHtml(l('trading.owner.complete', 'Marquer terminée')) : escapeHtml(l('trading.owner.reopen', 'Rouvrir'))}</button>
+          <button class="btn btn-secondary" type="button" data-owner-status="${canComplete ? 'completed' : 'open'}"><i class="fa-solid ${canComplete ? 'fa-circle-check' : 'fa-rotate-left'}" aria-hidden="true"></i>${canComplete ? escapeHtml(l('trading.owner.complete', 'Marquer terminée')) : escapeHtml(l('trading.owner.reopen', 'Rouvrir'))}</button>
           <button class="btn btn-danger-soft" type="button" data-delete-trade><i class="fa-solid fa-trash-can" aria-hidden="true"></i> ${escapeHtml(l('trading.owner.delete', 'Supprimer'))}</button>
         </div>`
       : '';
@@ -1630,7 +1732,7 @@
     if (canRespondToTrade(trade)) renderPicker('counter');
   }
 
-  function openTradeDetail(tradeId, trigger, intent = 'view') {
+  async function openTradeDetail(tradeId, trigger, intent = 'view') {
     const trade = state.trades.find((item) => item.id === tradeId);
     if (!trade) return;
     state.activeTradeId = tradeId;
@@ -1641,6 +1743,9 @@
     $('.trade-detail-card', modal).scrollTop = 0;
     openModal(modal, trigger);
     window.requestAnimationFrame(() => byId('trade-detail-title').focus());
+    if (!state.responsesLoaded.has(tradeId)) {
+      await loadTradeResponses(tradeId);
+    }
   }
 
   function closeDetail(restoreFocus = true) {
@@ -1649,13 +1754,17 @@
     state.counter.clear();
   }
 
-  function submitCounteroffer(event) {
+  async function submitCounteroffer(event) {
     if (!event.target.matches('#counteroffer-form')) return;
     event.preventDefault();
     if (isSubmitting) return;
     const trade = state.trades.find((item) => item.id === state.activeTradeId);
     if (!trade || trade.status !== 'open' || trade.owned) {
       showToast(l('trading.feedback.cannotRespond', 'Cette offre ne peut plus recevoir de réponse.'), 'warning');
+      return;
+    }
+    if (!storageIsWritable()) {
+      showToast(l('trading.api.storageRequired', "Le stockage du navigateur doit être disponible pour conserver ta clé de réponse."), 'warning');
       return;
     }
 
@@ -1698,30 +1807,55 @@
     isSubmitting = true;
     const wasCounteroffer = interactionState(trade) === 'counter_received';
     setFormBusy(event.target, true, l('trading.feedback.sendingOffer', 'Envoi…'));
-    const responseId = uniqueId('counter');
-    trade.responses.push({
-      id: responseId,
-      username,
-      offered: selectionToLines(state.counter, trade.mode),
-      note: byId('counter-note').value.trim().slice(0, 160),
-      createdAt: new Date().toISOString(),
-      local: true,
-      outcome: 'pending'
-    });
-    trade.localInteraction = { responseId, state: 'offer_sent', updatedAt: new Date().toISOString() };
-    ensureTracker(trade.id, 'player_contacted');
-    persistTrades();
-    state.counter.clear();
-    renderTrades();
-    renderTradeDetail();
-    window.requestAnimationFrame(() => $('[data-interaction-state]', byId('trade-detail-modal'))?.focus());
-    showToast(wasCounteroffer
-      ? l('trading.feedback.counterSent', 'Contre-offre enregistrée sur cet appareil.')
-      : l('trading.feedback.offerSent', 'Offre enregistrée sur cet appareil.'));
-    announce(wasCounteroffer
-      ? l('trading.feedback.counterSentAnnouncement', 'Contre-offre enregistrée localement.')
-      : l('trading.feedback.offerSentAnnouncement', 'Offre enregistrée localement.'));
-    window.setTimeout(() => { isSubmitting = false; }, 0);
+    try {
+      const payload = {
+        username,
+        offered: apiLines(selectionToLines(state.counter, trade.mode)),
+        note: byId('counter-note').value.trim().slice(0, 160)
+      };
+      const fingerprint = JSON.stringify({ tradeId: trade.id, ...payload });
+      if (!pendingResponseSubmission || pendingResponseSubmission.fingerprint !== fingerprint) {
+        pendingResponseSubmission = { requestId: requestId(), fingerprint };
+      }
+      payload.requestId = pendingResponseSubmission.requestId;
+      const data = await apiRequest(`${API.responses}?tradeId=${encodeURIComponent(trade.id)}`, {
+        method: 'POST',
+        body: payload
+      });
+      const response = sanitizeResponse(data?.response, trade.mode);
+      const token = typeof data?.manageToken === 'string' ? data.manageToken : '';
+      if (!response || !/^[A-Za-z0-9_-]{32,180}$/.test(token)) {
+        throw new TradingApiError(l('trading.api.invalidResponse', 'Le serveur a renvoyé une réponse invalide.'), 0, 'invalid_response');
+      }
+      state.responseTokens.set(response.id, { tradeId: trade.id, token });
+      if (!persistResponseTokens()) {
+        showToast(l('trading.api.tokenSaveFailed', "La réponse a été publiée, mais sa clé de gestion n'a pas pu être sauvegardée."), 'warning');
+      }
+      const existingIndex = trade.responses.findIndex((item) => item.id === response.id);
+      if (existingIndex === -1) trade.responses.push(response);
+      else trade.responses[existingIndex] = response;
+      if (existingIndex === -1) state.stats.responses += 1;
+      trade.responseCount = clampInteger(data?.responseCount, trade.responses.length, 999999, trade.responses.length);
+      state.responsesLoaded.add(trade.id);
+      pendingResponseSubmission = null;
+      ensureTracker(trade.id, 'player_contacted');
+      state.counter.clear();
+      await loadTradeResponses(trade.id, { quiet: true });
+      renderTrades();
+      renderTradeDetail();
+      window.requestAnimationFrame(() => $('[data-interaction-state]', byId('trade-detail-modal'))?.focus());
+      showToast(wasCounteroffer
+        ? l('trading.feedback.counterSent', 'Ta contre-offre est visible par la communauté.')
+        : l('trading.feedback.offerSent', 'Ta réponse est visible par la communauté.'));
+      announce(wasCounteroffer
+        ? l('trading.feedback.counterSentAnnouncement', 'Contre-offre communautaire publiée.')
+        : l('trading.feedback.offerSentAnnouncement', 'Réponse communautaire publiée.'));
+    } catch (error) {
+      showToast(error.message || l('trading.api.requestFailed', "Impossible d'envoyer la réponse."), 'warning');
+    } finally {
+      isSubmitting = false;
+      setFormBusy(event.target, false, '');
+    }
   }
 
   function toggleSaved(tradeId) {
@@ -1756,23 +1890,6 @@
     if (trade) {
       byId('trade-block-undo-message').textContent = l('trading.moderation.blockedNamed', `Le profil de ${trade.username} est masqué sur cet appareil.`, { username: trade.username });
     }
-  }
-
-  function toggleReported(tradeId) {
-    const trade = state.trades.find((item) => item.id === tradeId && !item.owned);
-    if (!trade) return;
-    const removing = state.reported.has(tradeId);
-    if (removing) state.reported.delete(tradeId);
-    else state.reported.add(tradeId);
-    persistModeration();
-    renderTrades();
-    if (state.activeTradeId === tradeId) renderTradeDetail();
-    focusAfterRender(`[data-report-trade="${tradeId}"]`, `[data-view-trade="${tradeId}"]`);
-    const message = removing
-      ? l('trading.feedback.reportRemoved', 'Signalement local retiré.')
-      : l('trading.feedback.reported', 'Profil signalé sur cet appareil.');
-    showToast(message);
-    announce(message);
   }
 
   function blockTrade(tradeId) {
@@ -1822,22 +1939,52 @@
     announce(message);
   }
 
-  function updateResponseOutcome(responseId, outcome) {
+  function handleCapabilityFailure(error, tradeId) {
+    if (!(error instanceof TradingApiError) || ![403, 404].includes(error.status)) return false;
+    state.ownerTokens.delete(tradeId);
+    persistOwnerTokens();
+    const trade = state.trades.find((item) => item.id === tradeId);
+    if (trade) trade.owned = false;
+    showToast(l('trading.api.managementLost', "La clé de gestion de cette offre n'est plus valide sur cet appareil."), 'warning');
+    renderTrades();
+    if (state.activeTradeId === tradeId) renderTradeDetail();
+    return true;
+  }
+
+  async function updateResponseOutcome(responseId, outcome) {
     const trade = state.trades.find((item) => item.id === state.activeTradeId && item.owned && item.status === 'open');
     const response = trade?.responses.find((item) => item.id === responseId);
     if (!trade || !response || !['accepted', 'declined'].includes(outcome)) return;
-    response.outcome = outcome;
-    trade.localInteraction = { responseId, state: outcome, updatedAt: new Date().toISOString() };
-    if (outcome === 'accepted') ensureTracker(trade.id, 'exchange_pending');
-    persistTrades();
-    renderTrades();
-    renderTradeDetail();
-    focusAfterRender(`[data-response-item="${responseId}"] .counter-outcome`, '[data-interaction-state]');
-    const message = outcome === 'accepted'
-      ? l('trading.feedback.responseAccepted', 'Offre acceptée localement. Vérifie maintenant l’échange dans le jeu.')
-      : l('trading.feedback.responseDeclined', 'Offre refusée localement.');
-    showToast(message);
-    announce(message);
+    const token = state.ownerTokens.get(trade.id) || '';
+    if (!token || isSubmitting) return;
+    isSubmitting = true;
+    try {
+      const data = await apiRequest(API.responseAction, {
+        method: 'POST',
+        token,
+        body: { tradeId: trade.id, responseId, action: 'set_outcome', outcome, version: trade.version }
+      });
+      const updated = replaceTrade(data?.trade);
+      if (outcome === 'accepted') state.stats.open = Math.max(0, state.stats.open - 1);
+      updated.responses = Array.isArray(data?.responses)
+        ? data.responses.map((item) => sanitizeResponse(item, updated.mode)).filter(Boolean)
+        : [];
+      updated.responseCount = updated.responses.length;
+      state.responsesLoaded.add(updated.id);
+      if (outcome === 'accepted') ensureTracker(updated.id, 'exchange_pending');
+      renderTrades();
+      renderTradeDetail();
+      focusAfterRender(`[data-response-item="${responseId}"] .counter-outcome`, '[data-interaction-state]');
+      const message = outcome === 'accepted'
+        ? l('trading.feedback.responseAccepted', "Contre-offre acceptée. Vérifie maintenant l'échange dans le jeu.")
+        : l('trading.feedback.responseDeclined', 'Contre-offre refusée.');
+      showToast(message);
+      announce(message);
+    } catch (error) {
+      if (!handleCapabilityFailure(error, trade.id)) showToast(error.message, 'warning');
+    } finally {
+      isSubmitting = false;
+    }
   }
 
   function advanceTracker(tradeId) {
@@ -1848,11 +1995,6 @@
     const nextStage = TRACKER_STAGES[currentIndex + 1];
     if (!nextStage) return;
     state.tracker.set(tradeId, { stage: nextStage, updatedAt: new Date().toISOString() });
-    if (nextStage === 'completed') {
-      trade.localInteraction = { responseId: trade.localInteraction?.responseId || null, state: 'completed', updatedAt: new Date().toISOString() };
-      if (trade.owned) trade.status = 'completed';
-      persistTrades();
-    }
     persistTracker();
     renderTrades();
     if (state.activeTradeId === tradeId) renderTradeDetail();
@@ -1863,49 +2005,79 @@
     announce(message);
   }
 
-  function updateOwnedStatus(status) {
+  async function updateOwnedStatus(status) {
     const trade = state.trades.find((item) => item.id === state.activeTradeId && item.owned);
     if (!trade || !['open', 'completed'].includes(status)) return;
-    trade.status = status;
-    if (status === 'completed') {
-      trade.localInteraction = { responseId: trade.localInteraction?.responseId || null, state: 'completed', updatedAt: new Date().toISOString() };
-      state.tracker.set(trade.id, { stage: 'completed', updatedAt: new Date().toISOString() });
-    } else {
-      const pendingResponse = trade.responses.find((response) => response.outcome === 'pending');
-      trade.localInteraction = {
-        responseId: pendingResponse?.id || null,
-        state: pendingResponse ? 'counter_received' : 'awaiting_response',
-        updatedAt: new Date().toISOString()
-      };
-      state.tracker.set(trade.id, { stage: pendingResponse ? 'exchange_pending' : 'prepared', updatedAt: new Date().toISOString() });
+    const token = state.ownerTokens.get(trade.id) || '';
+    if (!token || isSubmitting) return;
+    isSubmitting = true;
+    try {
+      const wasOpen = trade.status === 'open';
+      const data = await apiRequest(API.tradeAction, {
+        method: 'POST',
+        token,
+        body: { tradeId: trade.id, action: 'set_status', status, version: trade.version }
+      });
+      const updated = replaceTrade(data?.trade);
+      const isOpen = updated.status === 'open';
+      if (wasOpen && !isOpen) state.stats.open = Math.max(0, state.stats.open - 1);
+      else if (!wasOpen && isOpen) state.stats.open += 1;
+      if (status === 'completed') state.tracker.set(updated.id, { stage: 'completed', updatedAt: new Date().toISOString() });
+      else state.tracker.set(updated.id, { stage: 'prepared', updatedAt: new Date().toISOString() });
+      persistTracker();
+      await loadTradeResponses(updated.id, { quiet: true });
+      renderTrades();
+      renderTradeDetail();
+      focusAfterRender('[data-owner-status]', '[data-interaction-state]');
+      showToast(status === 'completed'
+        ? l('trading.feedback.completed', 'Offre marquée comme terminée pour toute la communauté.')
+        : l('trading.feedback.reopened', 'Offre rouverte pour toute la communauté.'));
+    } catch (error) {
+      if (!handleCapabilityFailure(error, trade.id)) showToast(error.message, 'warning');
+    } finally {
+      isSubmitting = false;
     }
-    persistTrades();
-    persistTracker();
-    renderTrades();
-    renderTradeDetail();
-    focusAfterRender('[data-owner-status]', '[data-interaction-state]');
-    showToast(status === 'completed'
-      ? l('trading.feedback.completed', 'Offre marquée comme terminée.')
-      : l('trading.feedback.reopened', 'Offre rouverte.'));
   }
 
-  function deleteOwnedTrade() {
+  async function deleteOwnedTrade() {
     const trade = state.trades.find((item) => item.id === state.activeTradeId && item.owned);
     if (!trade) return;
-    if (!window.confirm(l('trading.confirm.delete', 'Supprimer définitivement cette offre locale ?'))) return;
-    state.trades = state.trades.filter((item) => item.id !== trade.id);
-    state.saved.delete(trade.id);
-    state.reported.delete(trade.id);
-    state.blocked.delete(trade.id);
-    state.tracker.delete(trade.id);
-    persistTrades();
-    persistSaved();
-    persistModeration();
-    persistTracker();
-    closeDetail();
-    renderTrades();
-    showToast(l('trading.feedback.deleted', 'Offre locale supprimée.'));
-    announce(l('trading.feedback.deletedAnnouncement', 'Offre supprimée.'));
+    if (!window.confirm(l('trading.confirm.delete', 'Retirer cette offre du marché communautaire ?'))) return;
+    const token = state.ownerTokens.get(trade.id) || '';
+    if (!token || isSubmitting) return;
+    isSubmitting = true;
+    try {
+      const removedWasOpen = trade.status === 'open';
+      const removedResponses = trade.responseCount;
+      await apiRequest(API.tradeAction, {
+        method: 'POST',
+        token,
+        body: { tradeId: trade.id, action: 'remove', version: trade.version }
+      });
+      if (removedWasOpen) state.stats.open = Math.max(0, state.stats.open - 1);
+      state.stats.responses = Math.max(0, state.stats.responses - removedResponses);
+      state.trades = state.trades.filter((item) => item.id !== trade.id);
+      state.saved.delete(trade.id);
+      state.blocked.delete(trade.id);
+      state.ownerTokens.delete(trade.id);
+      state.tracker.delete(trade.id);
+      [...state.responseTokens.entries()].forEach(([responseId, record]) => {
+        if (record.tradeId === trade.id) state.responseTokens.delete(responseId);
+      });
+      persistSaved();
+      persistModeration();
+      persistOwnerTokens();
+      persistResponseTokens();
+      persistTracker();
+      closeDetail();
+      renderTrades();
+      showToast(l('trading.feedback.deleted', 'Offre retirée du marché communautaire.'));
+      announce(l('trading.feedback.deletedAnnouncement', 'Offre retirée.'));
+    } catch (error) {
+      if (!handleCapabilityFailure(error, trade.id)) showToast(error.message, 'warning');
+    } finally {
+      isSubmitting = false;
+    }
   }
 
   function tradeShareMessage(trade) {
@@ -1913,7 +2085,7 @@
     const list = (lines) => lines.map((line) => `${line.quantity > 1 ? `${line.quantity}× ` : ''}${fruitById.get(line.fruitId)?.name || ''}`).join(' + ');
     const note = displayTradeNote(trade);
     return [
-      l('trading.shareMessage.intro', 'Salam, voici une offre Itemsouq Trading (démo) :'),
+      l('trading.shareMessage.intro', 'Salam, voici une offre Itemsouq Trading :'),
       '',
       l('trading.shareMessage.player', `Joueur : ${trade.username}`, { username: trade.username }),
       l('trading.shareMessage.format', `Format : ${mode.label}`, { mode: mode.label }),
@@ -1998,37 +2170,6 @@
     } finally {
       if (trigger?.isConnected) setShareBusy(trigger, false);
     }
-  }
-
-  function resetTradingDemo() {
-    if (!window.confirm(l('trading.confirm.resetAll', 'Réinitialiser les offres, favoris, suivis, profils masqués et brouillon Trading de ce navigateur ?'))) return;
-    try {
-      localStorage.removeItem(STORAGE.trades);
-      localStorage.removeItem(STORAGE.saved);
-      localStorage.removeItem(STORAGE.draft);
-      localStorage.removeItem(STORAGE.tracker);
-      localStorage.removeItem(STORAGE.reported);
-      localStorage.removeItem(STORAGE.blocked);
-    } catch (error) {
-      showToast(l('trading.feedback.storageResetFailed', 'Impossible de modifier le stockage local.'), 'warning');
-      return;
-    }
-    state.trades = sanitizeTrades(demoTrades());
-    state.saved.clear();
-    state.tracker.clear();
-    state.reported.clear();
-    state.blocked.clear();
-    state.lastBlockedTradeId = null;
-    createDraft = null;
-    resetCreateForm();
-    updateDraftPanel();
-    persistTrades();
-    persistSaved();
-    persistTracker();
-    persistModeration();
-    updateBlockUndo();
-    resetFilters();
-    showToast(l('trading.feedback.reset', 'La démo Trading a été réinitialisée.'));
   }
 
   function toggleMobileMenu(restoreFocus = false) {
@@ -2140,9 +2281,10 @@
     byId('trade-empty-action').addEventListener('click', (event) => {
       if (event.currentTarget.dataset.emptyMode === 'create') openCreate(event.currentTarget);
       else if (event.currentTarget.dataset.emptyMode === 'unblock-all') unblockAll();
+      else if (event.currentTarget.dataset.emptyMode === 'retry') loadTrades();
       else resetFilters();
     });
-    byId('reset-trading-demo').addEventListener('click', resetTradingDemo);
+    byId('retry-trading-load').addEventListener('click', loadTrades);
 
     $$('.trade-tab').forEach((tab) => tab.addEventListener('click', () => {
       state.view = tab.dataset.view;
@@ -2169,7 +2311,6 @@
       const remove = event.target.closest('[data-picker-remove]');
       const ownerStatus = event.target.closest('[data-owner-status]');
       const clearPickerSearch = event.target.closest('[data-clear-picker-search]');
-      const reportTrade = event.target.closest('[data-report-trade]');
       const blockTradeButton = event.target.closest('[data-block-trade]');
       const responseAction = event.target.closest('[data-response-action]');
       const trackerAdvance = event.target.closest('[data-advance-tracker]');
@@ -2187,11 +2328,11 @@
           announce(l('trading.picker.searchCleared', 'Recherche effacée.'));
         }
       }
-      else if (reportTrade) toggleReported(reportTrade.dataset.reportTrade);
       else if (blockTradeButton) blockTrade(blockTradeButton.dataset.blockTrade);
       else if (event.target.closest('[data-undo-block]')) undoBlock();
       else if (responseAction) updateResponseOutcome(responseAction.dataset.responseId, responseAction.dataset.responseAction);
       else if (trackerAdvance) advanceTracker(trackerAdvance.dataset.advanceTracker);
+      else if (event.target.closest('[data-retry-responses]') && state.activeTradeId) loadTradeResponses(state.activeTradeId);
       else if (event.target.closest('[data-focus-counter]')) {
         const panel = $('.counteroffer-panel', byId('trade-detail-modal'));
         panel?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
@@ -2277,13 +2418,11 @@
       updateValueSortAvailability();
       if (activeModal?.id === 'trade-detail-modal' && state.activeTradeId) {
         const activeElement = document.activeElement;
-        const focusSelector = activeElement?.dataset.reportTrade
-          ? `[data-report-trade="${activeElement.dataset.reportTrade}"]`
-          : activeElement?.dataset.advanceTracker
-            ? `[data-advance-tracker="${activeElement.dataset.advanceTracker}"]`
-            : activeElement?.dataset.ownerStatus
-              ? '[data-owner-status]'
-              : null;
+        const focusSelector = activeElement?.dataset.advanceTracker
+          ? `[data-advance-tracker="${activeElement.dataset.advanceTracker}"]`
+          : activeElement?.dataset.ownerStatus
+            ? '[data-owner-status]'
+            : null;
         renderTradeDetail();
         if (focusSelector) focusAfterRender(focusSelector, '#trade-detail-title');
       }
@@ -2294,7 +2433,7 @@
     if (fruits.length !== 41) console.warn(`Itemsouq Trading: expected 41 fruits, received ${fruits.length}.`);
   }
 
-  function init() {
+  async function init() {
     validateDataset();
     hydrateState();
     const calculatorHandoff = applyCalculatorHandoff();
@@ -2304,11 +2443,17 @@
     applyPageLocale();
     renderAllPickers();
     renderTrades();
+    await loadTrades();
     if (calculatorHandoff) {
       showToast(l('trading.feedback.calculatorPrepared', 'Offre chargée dans le calculateur.'));
     }
   }
 
-  init();
+  init().catch((error) => {
+    state.apiStatus = 'error';
+    state.apiError = error?.message || l('trading.api.unavailable', 'Le service Trading est momentanément indisponible.');
+    renderApiStatus();
+    renderTrades();
+  });
   document.addEventListener('DOMContentLoaded', applyPageLocale, { once: true });
 })();

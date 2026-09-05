@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/style.css?v=20260902-9">
+  <link rel="stylesheet" href="assets/css/style.css?v=20260905-1">
   <link rel="stylesheet" href="assets/css/features.css?v=20260902-9">
 </head>
 <body class="home-page">
@@ -88,7 +88,7 @@
       <div class="hero-orb hero-orb-two" aria-hidden="true"></div>
       <div class="container hero-grid">
         <div class="hero-copy">
-          <div class="eyebrow"><span class="live-dot"></span> <span data-i18n="hero.eyebrow">Marketplace marocain · Démo</span></div>
+          <div class="eyebrow"><span class="live-dot"></span> <span data-i18n="hero.eyebrow">Marketplace marocain · Catalogue en direct</span></div>
           <h1 id="hero-title" data-i18n-html="hero.title">Tes fruits préférés,<br><span>livrés en jeu.</span></h1>
           <p data-i18n="hero.copy">Choisis un fruit physique ou permanent, confirme ton prix en dirhams et finalise ta commande avec un vendeur sur WhatsApp.</p>
 
@@ -113,7 +113,7 @@
           <div class="showcase-card showcase-main">
             <div class="showcase-topline">
               <span class="mini-label" data-i18n="hero.featured">FRUIT EN VEDETTE</span>
-              <span class="status-chip"><span></span> <span data-i18n="status.available">Disponible</span></span>
+              <span class="status-chip" id="featured-availability"><span></span> <span data-featured-availability-text data-i18n="status.available">Disponible</span></span>
             </div>
             <div class="fruit-art fruit-art-dragon">
               <span class="fruit-ring fruit-ring-one" aria-hidden="true"></span>
@@ -127,7 +127,7 @@
                 <h2>Dragon</h2>
                 <p data-i18n="hero.dragonCopy">Fruit permanent · valeur officielle 5 000 Robux</p>
               </div>
-              <button class="showcase-add" type="button" data-quick-add="Dragon" data-mode="permanent" aria-label="Ajouter Dragon permanent" data-i18n-aria="aria.addDragonPermanent">
+              <button class="showcase-add" type="button" data-quick-add="dragon" data-mode="permanent" aria-label="Ajouter Dragon permanent" data-i18n-aria="aria.addDragonPermanent">
                 <i class="fa-solid fa-plus" aria-hidden="true"></i>
               </button>
             </div>
@@ -158,12 +158,17 @@
           <div>
             <span class="section-kicker" data-i18n="catalogue.kicker">LA BOUTIQUE</span>
             <h2 id="catalogue-title" data-i18n="catalogue.title">Trouve ton prochain fruit</h2>
-            <p data-i18n="catalogue.copy">Les images, valeurs Beli et valeurs Robux viennent du wiki. Les prix MAD affichés sont des prix de démonstration à confirmer avec le vendeur.</p>
+            <p data-i18n="catalogue.copyLive">Les images et valeurs Beli/Robux viennent du wiki. Les prix MAD et disponibilités sont gérés par Itemsouq.</p>
           </div>
           <a class="source-link" href="https://blox-fruits.fandom.com/wiki/Blox_Fruits" target="_blank" rel="noopener">
             <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i> <span data-i18n="catalogue.source">Source des images et valeurs</span>
           </a>
         </div>
+
+        <p class="catalogue-data-status is-loading" id="catalogue-data-status" role="status" aria-live="polite">
+          <i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i>
+          <span data-i18n="catalogue.loadingPrices">Chargement des prix et disponibilités Itemsouq…</span>
+        </p>
 
         <div class="shop-panel">
           <div class="variant-switch" role="group" aria-label="Format du fruit" data-i18n-aria="aria.fruitFormat">
@@ -224,7 +229,7 @@
           <div class="budget-finder" aria-labelledby="budget-title" data-secondary-filter>
             <div class="budget-copy">
               <span class="budget-icon"><i class="fa-solid fa-wallet" aria-hidden="true"></i></span>
-              <span><strong id="budget-title" data-i18n="budget.title">Ton budget démo</strong><small data-i18n="budget.copy">Filtre instantanément les prix en dirhams.</small></span>
+              <span><strong id="budget-title" data-i18n="budget.titleLive">Ton budget</strong><small data-i18n="budget.copy">Filtre instantanément les prix en dirhams.</small></span>
             </div>
             <div class="budget-control">
               <label for="budget-range" class="sr-only" data-i18n="budget.maxLabel">Budget maximal en dirhams</label>
@@ -335,8 +340,8 @@
         <div class="trust-card">
           <div class="trust-card-head">
             <span><i class="fa-solid fa-receipt" aria-hidden="true"></i></span>
-            <div><small data-i18n="receipt.example">EXEMPLE DE COMMANDE</small><strong>ISQ-DEMO-2841</strong></div>
-            <em data-i18n="common.demo">Démo</em>
+            <div><small data-i18n="receipt.example">EXEMPLE DE COMMANDE</small><strong>ISQ-EXEMPLE</strong></div>
+            <em data-i18n="common.demo">Exemple</em>
           </div>
           <div class="receipt-item">
             <span class="receipt-fruit"><img src="assets/images/fruits/dragon.webp" alt="" width="512" height="498" loading="lazy" decoding="async"></span>
@@ -345,7 +350,7 @@
           </div>
           <div class="receipt-line"><span data-i18n="souq.payment">Paiement préféré</span><strong>Cash Plus</strong></div>
           <div class="receipt-line"><span data-i18n="receipt.delivery">Livraison</span><strong data-i18n="receipt.inGame">En jeu</strong></div>
-          <div class="receipt-total"><span data-i18n="order.demoTotal">Total démo</span><strong>750 MAD</strong></div>
+          <div class="receipt-total"><span data-i18n="order.demoTotal">Total de l'exemple</span><strong>750 MAD</strong></div>
           <div class="receipt-note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> <span data-i18n="receipt.confirmation">Le vendeur confirme toujours le total final sur WhatsApp.</span></div>
         </div>
       </div>
@@ -370,7 +375,7 @@
           </details>
           <details>
             <summary><span data-i18n="faq.pricesQuestion">Les prix affichés sont-ils définitifs ?</span> <i class="fa-solid fa-plus" aria-hidden="true"></i></summary>
-            <p data-i18n="faq.pricesAnswer">Dans cette démonstration, les prix MAD sont indicatifs. Le prix final et la disponibilité doivent être confirmés avec le vendeur avant tout paiement.</p>
+            <p data-i18n="faq.pricesAnswerManaged">Les prix MAD et disponibilités sont gérés par Itemsouq. La commande est revérifiée par le serveur et le vendeur avant tout paiement.</p>
           </details>
           <details>
             <summary><span data-i18n="faq.affiliationQuestion">Itemsouq est-il affilié à Roblox ?</span> <i class="fa-solid fa-plus" aria-hidden="true"></i></summary>
@@ -388,7 +393,7 @@
           <span class="brand-mark" aria-hidden="true"><img src="assets/brand/itemsouq-mark.svg" alt="" width="64" height="64" loading="lazy"></span>
           <span class="brand-copy"><strong>ITEMSOUQ</strong><small>FRUITS MARKET</small></span>
         </a>
-        <p data-i18n="footer.copy">Une démonstration de marketplace marocaine pour préparer des commandes de fruits Blox Fruits sur WhatsApp.</p>
+        <p data-i18n="footer.copy">La marketplace marocaine pour découvrir et commander des fruits Blox Fruits avec confirmation sur WhatsApp.</p>
       </div>
       <div>
         <h3 data-i18n="footer.shop">Boutique</h3>
@@ -406,11 +411,11 @@
       </div>
       <div>
         <h3 data-i18n="footer.important">Important</h3>
-        <p class="footer-small" data-i18n="footer.warning">Démo uniquement. Ne partage jamais ton mot de passe Roblox, ton PIN, un OTP ou des informations bancaires sensibles.</p>
+        <p class="footer-small" data-i18n="footer.warning">Ne partage jamais ton mot de passe Roblox, ton PIN, un OTP ou des informations bancaires sensibles.</p>
       </div>
     </div>
     <div class="container footer-bottom">
-      <span data-i18n="footer.copyright">© 2026 Itemsouq · Concept de démonstration</span>
+      <span data-i18n="footer.copyright">© 2026 Itemsouq · Marketplace marocaine</span>
       <span data-i18n="footer.notAffiliated">Non affilié à Roblox ou Blox Fruits</span>
     </div>
   </footer>
@@ -457,7 +462,7 @@
   <aside class="cart-drawer" id="cart-drawer" role="dialog" aria-modal="true" aria-labelledby="cart-title" hidden>
     <div class="drawer-head">
       <div>
-        <span class="drawer-kicker" data-i18n="order.kicker">COMMANDE LOCALE</span>
+        <span class="drawer-kicker" data-i18n="order.kickerTracked">COMMANDE &amp; SUIVI</span>
         <h2 id="cart-title"><span data-i18n="header.order">Ma commande</span> <span id="drawer-count">0</span></h2>
       </div>
       <button class="drawer-close" type="button" aria-label="Fermer la commande" data-i18n-aria="aria.closeOrder"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
@@ -468,6 +473,7 @@
       <li data-order-step="3"><span>3</span><small data-i18n="order.step.whatsapp">WhatsApp</small></li>
     </ol>
     <div class="drawer-body" id="cart-items"></div>
+    <div class="order-tracker-panel" id="order-tracker-panel" aria-live="polite"></div>
     <div class="drawer-empty" id="cart-empty">
       <span><i class="fa-solid fa-bag-shopping" aria-hidden="true"></i></span>
       <h3 data-i18n="order.emptyTitle">Ta commande est vide</h3>
@@ -476,7 +482,7 @@
     </div>
     <div class="drawer-footer" id="cart-footer" hidden>
       <div class="demo-price-note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> <span data-i18n="order.totalNotice">Total indicatif à confirmer sur WhatsApp.</span></div>
-      <div class="drawer-total"><span data-i18n="order.demoTotal">Total démo</span><strong id="cart-total">0 MAD</strong></div>
+      <div class="drawer-total"><span data-i18n="order.displayedTotal">Total affiché</span><strong id="cart-total">0 MAD</strong></div>
       <button class="btn btn-primary btn-full" id="checkout-open" type="button"><span data-i18n="order.prepareWhatsApp">Préparer sur WhatsApp</span> <i class="fa-brands fa-whatsapp" aria-hidden="true"></i></button>
       <button class="clear-cart" id="clear-cart" type="button" data-i18n="order.clear">Vider la commande</button>
     </div>
@@ -498,7 +504,7 @@
       </ol>
       <form id="checkout-form" novalidate>
         <div class="modal-body">
-          <div class="checkout-notice"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i><p><strong data-i18n="checkout.noPayment">Aucun paiement ici.</strong> <span data-i18n="checkout.notice">Ce formulaire prépare seulement un message WhatsApp. Le vendeur te répondra avant tout paiement.</span></p></div>
+          <div class="checkout-notice"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i><p><strong data-i18n="checkout.noPayment">Aucun paiement ici.</strong> <span data-i18n="checkout.noticeServer">Ce formulaire crée une demande suivie et prépare le message WhatsApp. Le vendeur te répondra avant tout paiement.</span></p></div>
 
           <div class="form-grid">
             <div class="field-group">
@@ -508,7 +514,7 @@
             </div>
             <div class="field-group">
               <label for="roblox-username" data-i18n="checkout.robloxUsername">Pseudo Roblox</label>
-              <input id="roblox-username" name="robloxUsername" type="text" required maxlength="30" placeholder="Ex. Youssef_RBX" data-i18n-placeholder="checkout.robloxPlaceholder" autocomplete="off" aria-describedby="roblox-username-error">
+              <input id="roblox-username" name="robloxUsername" type="text" required maxlength="20" placeholder="Ex. Youssef_RBX" data-i18n-placeholder="checkout.robloxPlaceholder" autocomplete="off" aria-describedby="roblox-username-error">
               <span class="field-error" id="roblox-username-error" data-error-for="roblox-username" aria-live="polite"></span>
             </div>
           </div>
@@ -531,11 +537,13 @@
           </fieldset>
 
           <div class="order-preview" id="order-preview"></div>
-          <p class="privacy-note"><i class="fa-solid fa-lock" aria-hidden="true"></i> <span data-i18n="checkout.privacy">Tes informations ne sont pas enregistrées dans ce navigateur.</span></p>
+          <p class="privacy-note"><i class="fa-solid fa-lock" aria-hidden="true"></i> <span data-i18n="checkout.privacyServer">Itemsouq enregistre uniquement les informations nécessaires à cette demande. Aucun code de paiement, PIN, OTP ou mot de passe n’est demandé.</span></p>
+          <p class="checkout-api-status" id="checkout-api-status" role="status" aria-live="polite" hidden></p>
         </div>
         <div class="modal-foot">
           <button class="btn btn-secondary modal-cancel" type="button" data-i18n="common.back">Retour</button>
-          <button class="btn btn-whatsapp" type="submit"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i> <span data-i18n="hero.whatsapp">Ouvrir WhatsApp</span></button>
+          <a class="btn btn-whatsapp" id="checkout-whatsapp-fallback" href="#" target="_blank" rel="noopener" hidden><i class="fa-brands fa-whatsapp" aria-hidden="true"></i> <span data-i18n="checkout.continueWhatsApp">Continuer sur WhatsApp</span></a>
+          <button class="btn btn-whatsapp" id="checkout-submit" type="submit"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i> <span data-i18n="hero.whatsapp">Ouvrir WhatsApp</span></button>
         </div>
       </form>
     </div>
@@ -599,9 +607,9 @@
     <span id="toast-message" data-i18n="toast.added">Ajouté à ta commande</span>
   </div>
 
-  <script src="assets/js/config.js?v=20260902-9"></script>
-  <script src="assets/js/fruits.js?v=20260902-9"></script>
-  <script src="assets/js/locale.js?v=20260902-9"></script>
-  <script src="assets/js/app.js?v=20260902-9"></script>
+  <script src="assets/js/config.js?v=20260905-1"></script>
+  <script src="assets/js/fruits.js?v=20260905-1"></script>
+  <script src="assets/js/locale.js?v=20260905-1"></script>
+  <script src="assets/js/app.js?v=20260905-1"></script>
 </body>
 </html>
