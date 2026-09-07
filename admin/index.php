@@ -15,7 +15,7 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>Itemsouq · Espace propriétaire</title>
   <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="admin.css?v=20260905-2">
+  <link rel="stylesheet" href="admin.css?v=20260907-1">
 </head>
 <body>
   <header class="topbar">
@@ -58,18 +58,22 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style
 
     <section class="dashboard" id="dashboard" hidden aria-labelledby="dashboard-title">
       <div class="dashboard-head">
-        <div><span class="eyebrow">ESPACE PROPRIÉTAIRE</span><h1 id="dashboard-title">Catalogue</h1><p>Bonjour <strong id="dashboard-owner"></strong>, gérez les prix et le stock depuis une seule vue.</p></div>
+        <div><span class="eyebrow">ESPACE PROPRIÉTAIRE</span><h1 id="dashboard-title">Gestion du Souq</h1><p>Bonjour <strong id="dashboard-owner"></strong>, gérez les offres publiques depuis une seule vue.</p></div>
         <button class="button ghost" id="refresh-button" type="button">Actualiser</button>
       </div>
 
       <div class="summary-grid" aria-label="Résumé">
-        <article><span>Offres à vérifier</span><strong id="review-count">—</strong><small>prix ou quantité à confirmer</small></article>
+        <article><span>Fruits à vérifier</span><strong id="review-count">—</strong><small>prix ou quantité à confirmer</small></article>
         <article><span>Fruits actifs</span><strong id="fruit-count">—</strong><small>deux formats par fruit</small></article>
+        <article><span>Game Passes</span><strong id="game-pass-count">—</strong><small><span id="game-pass-review-count">—</span> à vérifier</small></article>
+        <article><span>Services</span><strong id="service-count">—</strong><small>offres créées par vous</small></article>
         <article><span>Demandes ouvertes</span><strong id="open-order-count">—</strong><small>commandes WhatsApp</small></article>
       </div>
 
       <div class="tabs" role="tablist" aria-label="Gestion">
-        <button type="button" role="tab" aria-selected="true" aria-controls="catalogue-panel" id="catalogue-tab">Prix et disponibilité</button>
+        <button type="button" role="tab" aria-selected="true" aria-controls="catalogue-panel" id="catalogue-tab">Catalogue fruits</button>
+        <button type="button" role="tab" aria-selected="false" aria-controls="game-passes-panel" id="game-passes-tab">Game Passes</button>
+        <button type="button" role="tab" aria-selected="false" aria-controls="services-panel" id="services-tab">Services</button>
         <button type="button" role="tab" aria-selected="false" aria-controls="orders-panel" id="orders-tab">Commandes WhatsApp</button>
       </div>
 
@@ -102,6 +106,54 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style
         </div>
       </section>
 
+      <section class="workspace" id="game-passes-panel" role="tabpanel" aria-labelledby="game-passes-tab" hidden>
+        <div class="workspace-head">
+          <div><h2>Catalogue Game Passes</h2><p>Définissez votre prix en dirhams et la disponibilité de chaque pass.</p></div>
+          <a class="button ghost inline-link" href="../gamepasses.html" target="_blank" rel="noopener">Voir la page publique</a>
+        </div>
+        <div class="game-pass-list" id="game-pass-list" aria-live="polite"></div>
+      </section>
+
+      <section class="workspace" id="services-panel" role="tabpanel" aria-labelledby="services-tab" hidden>
+        <div class="workspace-head">
+          <div><h2>Services Itemsouq</h2><p>Créez vous-même les offres qui apparaîtront sur la page Services.</p></div>
+          <a class="button ghost inline-link" href="../services.html" target="_blank" rel="noopener">Voir la page publique</a>
+        </div>
+        <div class="service-safety" role="note">
+          <strong>Protection des comptes</strong>
+          <span>Les ventes ou transferts de comptes et les identifiants de connexion ne sont pas acceptés. Publiez uniquement des services sûrs qui ne demandent jamais de mot de passe, code ou cookie.</span>
+        </div>
+        <form class="service-create" id="service-create-form" novalidate>
+          <div class="section-heading">
+            <div><span class="eyebrow">NOUVELLE OFFRE</span><h3>Ajouter un service</h3></div>
+            <span class="draft-pill">Masqué par défaut</span>
+          </div>
+          <div class="service-language-grid">
+            <fieldset>
+              <legend>Version française</legend>
+              <label>Titre<input name="titleFr" type="text" minlength="3" maxlength="100" placeholder="Ex. Accompagnement personnalisé" required></label>
+              <label>Description<textarea name="descriptionFr" maxlength="300" placeholder="Expliquez clairement le service proposé."></textarea></label>
+            </fieldset>
+            <fieldset lang="ary-Latn" dir="ltr">
+              <legend>Version Darija</legend>
+              <label>Titre b Darija<input name="titleAry" type="text" minlength="3" maxlength="100" placeholder="Ex. Mosa3ada mkhasssa" required></label>
+              <label>Description b Darija<textarea name="descriptionAry" maxlength="300" placeholder="Chre7 service b Darija wad7a."></textarea></label>
+            </fieldset>
+          </div>
+          <div class="service-meta-grid">
+            <label>Prix MAD<input name="priceMad" type="number" min="0" max="99999999.99" step="0.01" placeholder="Sur demande"></label>
+            <label>Disponibilité<select name="availability"><option value="hidden">Masquée</option><option value="on_request">Sur demande</option><option value="available">Disponible</option><option value="out_of_stock">Indisponible</option></select></label>
+            <label>Ordre<input name="sortOrder" type="number" min="0" max="65535" step="1" value="10"></label>
+            <label class="check featured-check"><input name="isFeatured" type="checkbox"> <span>Mettre en avant</span></label>
+            <button class="button primary service-create-button" type="submit">Créer le service</button>
+          </div>
+        </form>
+        <div class="service-list-wrap">
+          <div class="section-heading service-list-heading"><div><span class="eyebrow">VOS OFFRES</span><h3>Services enregistrés</h3></div></div>
+          <div class="service-list" id="service-list" aria-live="polite"></div>
+        </div>
+      </section>
+
       <section class="workspace" id="orders-panel" role="tabpanel" aria-labelledby="orders-tab" hidden>
         <div class="workspace-head">
           <div><h2>Suivi WhatsApp</h2><p>Le client voit uniquement le statut et la note publique.</p></div>
@@ -125,6 +177,6 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style
   </main>
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
-  <script src="admin.js?v=20260905-2" defer></script>
+  <script src="admin.js?v=20260907-2" defer></script>
 </body>
 </html>

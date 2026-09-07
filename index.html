@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/style.css?v=20260905-1">
+  <link rel="stylesheet" href="assets/css/style.css?v=20260907-1">
   <link rel="stylesheet" href="assets/css/features.css?v=20260902-9">
 </head>
 <body class="home-page">
@@ -42,10 +42,10 @@
       <nav class="desktop-nav" aria-label="Navigation principale" data-i18n-aria="aria.mainNavigation">
         <a href="#top" data-i18n="nav.home" aria-current="page">Accueil</a>
         <a href="#catalogue" data-i18n="nav.catalogue">Catalogue</a>
+        <a href="gamepasses.html" data-i18n="nav.gamepasses">Game Passes</a>
+        <a href="services.html" data-i18n="nav.services">Services</a>
         <a href="calculator.html" data-i18n="nav.calculator">Calculateur</a>
         <a href="trading.html" data-i18n="nav.trading">Trading</a>
-        <a href="#comment-acheter" data-i18n="nav.how">Comment acheter</a>
-        <a href="#faq" data-i18n="nav.faq">FAQ</a>
       </nav>
 
       <div class="header-actions">
@@ -75,10 +75,10 @@
     <nav class="mobile-menu" id="mobile-menu" aria-label="Navigation mobile" data-i18n-aria="aria.mobileNavigation" hidden>
       <a href="#top"><i class="fa-solid fa-house" aria-hidden="true"></i> <span data-i18n="nav.home">Accueil</span></a>
       <a href="#catalogue"><i class="fa-solid fa-store" aria-hidden="true"></i> <span data-i18n="nav.catalogue">Catalogue</span></a>
+      <a href="gamepasses.html"><i class="fa-solid fa-ticket" aria-hidden="true"></i> <span data-i18n="nav.gamepasses">Game Passes</span></a>
+      <a href="services.html"><i class="fa-solid fa-hand-sparkles" aria-hidden="true"></i> <span data-i18n="nav.services">Services</span></a>
       <a href="calculator.html"><i class="fa-solid fa-scale-balanced" aria-hidden="true"></i> <span data-i18n="nav.calculator">Calculateur</span></a>
       <a href="trading.html"><i class="fa-solid fa-right-left" aria-hidden="true"></i> <span data-i18n="nav.trading">Trading</span></a>
-      <a href="#comment-acheter"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> <span data-i18n="nav.how">Comment acheter</span></a>
-      <a href="#faq"><i class="fa-solid fa-comments" aria-hidden="true"></i> <span data-i18n="nav.faq">FAQ</span></a>
     </nav>
   </header>
 
@@ -149,6 +149,47 @@
         <div><strong>5</strong><span data-i18n="stats.rarities">niveaux de rareté</span></div>
         <div><strong>2</strong><span data-i18n="stats.formats">formats disponibles</span></div>
         <div><strong>100%</strong><span data-i18n="stats.whatsapp">commande WhatsApp</span></div>
+      </div>
+    </section>
+
+    <section class="market-categories" aria-labelledby="market-categories-title">
+      <div class="container">
+        <div class="market-categories-heading">
+          <div>
+            <span class="section-kicker" data-i18n="categories.kicker">EXPLORE ITEMSOUQ</span>
+            <h2 id="market-categories-title" data-i18n="categories.title">Choisis ton espace</h2>
+          </div>
+          <p data-i18n="categories.copy">Trois espaces simples, avec des offres vérifiées et ajoutées par le propriétaire.</p>
+        </div>
+        <div class="market-category-grid">
+          <a class="market-category-card is-primary" href="#catalogue">
+            <span class="market-category-icon"><i class="fa-solid fa-apple-whole" aria-hidden="true"></i></span>
+            <span class="market-category-copy">
+              <small data-i18n="categories.fruitsEyebrow">41 FRUITS · 2 FORMATS</small>
+              <strong data-i18n="categories.fruitsTitle">Fruits</strong>
+              <span data-i18n="categories.fruitsCopy">Fruits physiques et permanents avec prix et stock Itemsouq.</span>
+            </span>
+            <i class="fa-solid fa-arrow-right market-category-arrow" aria-hidden="true"></i>
+          </a>
+          <a class="market-category-card" href="gamepasses.html">
+            <span class="market-category-icon"><i class="fa-solid fa-ticket" aria-hidden="true"></i></span>
+            <span class="market-category-copy">
+              <small data-i18n="categories.passesEyebrow">AVANTAGES PREMIUM</small>
+              <strong data-i18n="categories.passesTitle">Game Passes</strong>
+              <span data-i18n="categories.passesCopy">Compare les avantages et demande le prix confirmé sur WhatsApp.</span>
+            </span>
+            <i class="fa-solid fa-arrow-right market-category-arrow" aria-hidden="true"></i>
+          </a>
+          <a class="market-category-card" href="services.html">
+            <span class="market-category-icon"><i class="fa-solid fa-hand-sparkles" aria-hidden="true"></i></span>
+            <span class="market-category-copy">
+              <small data-i18n="categories.servicesEyebrow">OFFRES DU PROPRIÉTAIRE</small>
+              <strong data-i18n="categories.servicesTitle">Services</strong>
+              <span data-i18n="categories.servicesCopy">Découvre les services publiés par Itemsouq et contacte-nous sur WhatsApp.</span>
+            </span>
+            <i class="fa-solid fa-arrow-right market-category-arrow" aria-hidden="true"></i>
+          </a>
+        </div>
       </div>
     </section>
 
@@ -400,6 +441,8 @@
         <a href="#catalogue" data-i18n="footer.allFruits">Tous les fruits</a>
         <a href="#catalogue" data-footer-mode="physical" data-i18n="footer.physicalFruits">Fruits physiques</a>
         <a href="#catalogue" data-footer-mode="permanent" data-i18n="footer.permanentFruits">Fruits permanents</a>
+        <a href="gamepasses.html" data-i18n="footer.gamepasses">Game Passes</a>
+        <a href="services.html" data-i18n="footer.services">Services</a>
         <a href="trading.html" data-i18n="footer.communityTrading">Trading communautaire</a>
         <a href="calculator.html" data-i18n="footer.tradeCalculator">Calculateur d’échange</a>
       </div>
@@ -427,8 +470,8 @@
 
   <nav class="mobile-bottom-nav" aria-label="Navigation rapide" data-i18n-aria="aria.quickNavigation">
     <a href="#catalogue"><i class="fa-solid fa-store" aria-hidden="true"></i><span data-i18n="mobile.shop">Boutique</span></a>
+    <a href="gamepasses.html"><i class="fa-solid fa-ticket" aria-hidden="true"></i><span data-i18n="mobile.gamepasses">Passes</span></a>
     <a href="trading.html"><i class="fa-solid fa-right-left" aria-hidden="true"></i><span data-i18n="mobile.trade">Trading</span></a>
-    <a href="calculator.html"><i class="fa-solid fa-scale-balanced" aria-hidden="true"></i><span data-i18n="mobile.calculator">Calcul</span></a>
     <button type="button" data-mobile-souq aria-label="Ouvrir Mon Souq" data-i18n-aria="aria.openSouq" aria-controls="souq-drawer" aria-expanded="false"><i class="fa-solid fa-user" aria-hidden="true"></i><span data-i18n="mobile.souq">Mon Souq</span><b id="mobile-souq-count" role="status" aria-live="polite" hidden>0</b></button>
     <button type="button" data-mobile-cart aria-label="Ouvrir ma commande" data-i18n-aria="aria.openOrder" aria-controls="cart-drawer" aria-expanded="false"><i class="fa-solid fa-bag-shopping" aria-hidden="true"></i><span data-i18n="mobile.order">Commande</span><b id="mobile-cart-count" role="status" aria-live="polite" hidden>0</b></button>
   </nav>
@@ -609,7 +652,7 @@
 
   <script src="assets/js/config.js?v=20260905-1"></script>
   <script src="assets/js/fruits.js?v=20260905-1"></script>
-  <script src="assets/js/locale.js?v=20260905-1"></script>
+  <script src="assets/js/locale.js?v=20260907-2"></script>
   <script src="assets/js/app.js?v=20260905-1"></script>
 </body>
 </html>

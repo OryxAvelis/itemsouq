@@ -2,6 +2,8 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/api/_private/catalogue_service.php';
+require_once dirname(__DIR__, 2) . '/api/_private/game_pass_service.php';
+require_once dirname(__DIR__, 2) . '/api/_private/services_service.php';
 
 $pdo = isq_db();
 $database = (string) isq_config()['db']['name'];
@@ -10,6 +12,8 @@ $expected = [
     'isq_fruits', 'isq_fruit_offerings', 'isq_fruit_offering_history',
     'isq_trades', 'isq_trade_items', 'isq_trade_responses', 'isq_trade_response_items',
     'isq_orders', 'isq_order_items', 'isq_order_status_history',
+    'isq_game_passes', 'isq_game_pass_offerings', 'isq_game_pass_offering_history',
+    'isq_services', 'isq_service_history',
 ];
 $tableQuery = $pdo->prepare(
     'SELECT table_name FROM information_schema.tables WHERE table_schema = ? AND table_name LIKE \'isq\\_%\' ORDER BY table_name'
@@ -27,9 +31,15 @@ $counts = [
     'fruits' => (int) $pdo->query('SELECT COUNT(*) FROM isq_fruits')->fetchColumn(),
     'offerings' => (int) $pdo->query('SELECT COUNT(*) FROM isq_fruit_offerings')->fetchColumn(),
     'review' => (int) $pdo->query('SELECT COUNT(*) FROM isq_fruit_offerings WHERE needs_owner_review = 1')->fetchColumn(),
+    'gamePasses' => (int) $pdo->query('SELECT COUNT(*) FROM isq_game_passes')->fetchColumn(),
+    'gamePassOfferings' => (int) $pdo->query('SELECT COUNT(*) FROM isq_game_pass_offerings')->fetchColumn(),
+    'gamePassReview' => (int) $pdo->query('SELECT COUNT(*) FROM isq_game_pass_offerings WHERE needs_owner_review = 1')->fetchColumn(),
+    'services' => (int) $pdo->query('SELECT COUNT(*) FROM isq_services')->fetchColumn(),
 ];
-if ($counts['migrations'] !== 5 || $counts['fruits'] !== 41 || $counts['offerings'] !== 82
-    || $counts['review'] < 0 || $counts['review'] > 82) {
+if ($counts['migrations'] !== 6 || $counts['fruits'] !== 41 || $counts['offerings'] !== 82
+    || $counts['review'] < 0 || $counts['review'] > 82
+    || $counts['gamePasses'] !== 6 || $counts['gamePassOfferings'] !== 6
+    || $counts['gamePassReview'] < 0 || $counts['gamePassReview'] > 6 || $counts['services'] < 0) {
     fwrite(STDERR, 'Unexpected seed counts: ' . json_encode($counts) . "\n");
     exit(1);
 }
@@ -39,8 +49,36 @@ $foreignKeys = $pdo->prepare(
 );
 $foreignKeys->execute([$database]);
 $foreignKeyCount = (int) $foreignKeys->fetchColumn();
-if ($foreignKeyCount < 10) {
-    fwrite(STDERR, "Expected at least 10 foreign keys, found $foreignKeyCount.\n");
+if ($foreignKeyCount < 17) {
+    fwrite(STDERR, "Expected at least 17 foreign keys, found $foreignKeyCount.\n");
+    exit(1);
+}
+
+$publicGamePasses = isq_game_pass_catalogue_data(false);
+$ownerGamePasses = isq_game_pass_catalogue_data(true);
+if (count($publicGamePasses['gamePasses']) !== 6 || count($ownerGamePasses['gamePasses']) !== 6) {
+    fwrite(STDERR, "Game Pass service did not return all six canonical passes.\n");
+    exit(1);
+}
+$ownerPassesBySlug = array_column($ownerGamePasses['gamePasses'], null, 'id');
+foreach ($publicGamePasses['gamePasses'] as $gamePass) {
+    $publicOffering = $gamePass['offering'] ?? null;
+    $ownerOffering = $ownerPassesBySlug[$gamePass['id']]['offering'] ?? null;
+    if (!is_array($publicOffering) || !is_array($ownerOffering)) {
+        fwrite(STDERR, "Game Pass offering is missing for {$gamePass['id']}.\n");
+        exit(1);
+    }
+    if ($ownerOffering['needsOwnerReview'] && $ownerOffering['availability'] !== 'hidden'
+        && ($publicOffering['availability'] !== 'on_request' || $publicOffering['quantityAvailable'] !== null)) {
+        fwrite(STDERR, "Unreviewed Game Pass became publicly orderable for {$gamePass['id']}.\n");
+        exit(1);
+    }
+}
+
+$publicServices = isq_services_data(false);
+$ownerServices = isq_services_data(true);
+if ($counts['services'] === 0 && ($publicServices['services'] !== [] || $ownerServices['services'] !== [])) {
+    fwrite(STDERR, "Empty services catalogue did not remain empty.\n");
     exit(1);
 }
 

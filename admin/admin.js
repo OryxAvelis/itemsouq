@@ -9,7 +9,18 @@
   const availabilityLabels = {
     available: 'Disponible', out_of_stock: 'Indisponible', on_request: 'Sur demande', hidden: 'Masquée'
   };
-  const state = { csrf: null, owner: null, fruits: [], orders: [], reviewCount: 0, cataloguePage: 1, cataloguePageSize: 8 };
+  const state = {
+    csrf: null,
+    owner: null,
+    fruits: [],
+    gamePasses: [],
+    services: [],
+    orders: [],
+    reviewCount: 0,
+    gamePassReviewCount: 0,
+    cataloguePage: 1,
+    cataloguePageSize: 8
+  };
   const byId = (id) => document.getElementById(id);
   const element = (tag, className, text) => {
     const node = document.createElement(tag);
@@ -192,6 +203,141 @@
     });
   }
 
+  function renderGamePasses() {
+    const list = byId('game-pass-list');
+    list.replaceChildren();
+    if (!state.gamePasses.length) {
+      list.append(element('p', 'empty', 'Aucun Game Pass disponible. Vérifiez que la migration 006 est installée.'));
+      return;
+    }
+
+    state.gamePasses.forEach((gamePass) => {
+      const offering = gamePass.offering;
+      const card = element('article', 'game-pass-admin-card');
+      const identity = element('div', 'game-pass-admin-identity');
+      const image = document.createElement('img');
+      image.src = `../${gamePass.image}`;
+      image.alt = '';
+      image.width = 74;
+      image.height = 74;
+      const copy = element('div');
+      const titleLine = element('div', 'game-pass-title-line');
+      titleLine.append(element('h3', '', gamePass.name), element('span', 'robux-pill', `${gamePass.robux.toLocaleString('fr-FR')} Robux`));
+      copy.append(titleLine, element('p', '', gamePass.description));
+      if (offering?.needsOwnerReview) copy.append(element('span', 'review-badge', 'À vérifier'));
+      identity.append(image, copy);
+      card.append(identity);
+
+      if (!offering) {
+        card.append(element('p', 'empty compact-empty', 'Configuration de vente absente.'));
+        list.append(card);
+        return;
+      }
+
+      const editor = element('form', 'game-pass-editor');
+      editor.dataset.slug = gamePass.id;
+      editor.dataset.version = String(offering.version);
+
+      const priceLabel = element('label', '', 'Prix MAD');
+      const price = document.createElement('input');
+      price.name = 'price'; price.type = 'number'; price.min = '0'; price.max = '99999999.99'; price.step = '0.01';
+      price.placeholder = 'Sur demande'; price.value = offering.priceMad ?? '';
+      priceLabel.append(price);
+
+      const availabilityLabel = element('label', '', 'Disponibilité');
+      const availability = document.createElement('select');
+      availability.name = 'availability';
+      Object.entries(availabilityLabels).forEach(([value, label]) => {
+        const option = element('option', '', label); option.value = value; option.selected = offering.availability === value; availability.append(option);
+      });
+      availabilityLabel.append(availability);
+
+      const quantityLabel = element('label', '', 'Quantité');
+      const quantity = document.createElement('input');
+      quantity.name = 'quantity'; quantity.type = 'number'; quantity.min = '0'; quantity.max = '65535'; quantity.step = '1';
+      quantity.placeholder = 'Non affichée'; quantity.value = offering.quantityAvailable ?? '';
+      quantityLabel.append(quantity);
+
+      const save = element('button', 'button primary', 'Enregistrer');
+      save.type = 'submit';
+      editor.append(priceLabel, availabilityLabel, quantityLabel, save);
+      card.append(editor);
+      list.append(card);
+    });
+  }
+
+  function appendServiceTextField(fieldset, labelText, name, value, options = {}) {
+    const label = element('label', '', labelText);
+    const control = options.multiline ? document.createElement('textarea') : document.createElement('input');
+    control.name = name;
+    control.value = value || '';
+    if (options.multiline) control.maxLength = 300;
+    else { control.type = 'text'; control.minLength = 3; control.maxLength = 100; control.required = true; }
+    label.append(control);
+    fieldset.append(label);
+  }
+
+  function renderServices() {
+    const list = byId('service-list');
+    list.replaceChildren();
+    if (!state.services.length) {
+      const empty = element('div', 'service-empty');
+      empty.append(element('span', 'service-empty-icon', '+'), element('h4', '', 'Aucun service pour le moment'), element('p', '', 'Utilisez le formulaire ci-dessus pour créer votre première offre. Elle reste masquée jusqu’à ce que vous choisissiez de la publier.'));
+      list.append(empty);
+      return;
+    }
+
+    state.services.forEach((service) => {
+      const form = element('form', 'service-editor');
+      form.dataset.serviceId = service.id;
+      form.dataset.version = String(service.version);
+      form.classList.toggle('is-archived', service.isArchived);
+
+      const heading = element('div', 'section-heading service-card-heading');
+      const headingCopy = element('div');
+      headingCopy.append(element('span', 'service-id', service.id), element('h4', '', service.titleFr));
+      const status = element('span', `service-status ${service.isArchived ? 'archived' : service.availability}`, service.isArchived ? 'Archivé' : availabilityLabels[service.availability]);
+      heading.append(headingCopy, status);
+
+      const languages = element('div', 'service-language-grid');
+      const french = document.createElement('fieldset');
+      french.append(element('legend', '', 'Version française'));
+      appendServiceTextField(french, 'Titre', 'titleFr', service.titleFr);
+      appendServiceTextField(french, 'Description', 'descriptionFr', service.descriptionFr, { multiline: true });
+      const darija = document.createElement('fieldset');
+      darija.lang = 'ary-Latn'; darija.dir = 'ltr';
+      darija.append(element('legend', '', 'Version Darija'));
+      appendServiceTextField(darija, 'Titre b Darija', 'titleAry', service.titleAry);
+      appendServiceTextField(darija, 'Description b Darija', 'descriptionAry', service.descriptionAry, { multiline: true });
+      languages.append(french, darija);
+
+      const meta = element('div', 'service-meta-grid');
+      const priceLabel = element('label', '', 'Prix MAD');
+      const price = document.createElement('input'); price.name = 'priceMad'; price.type = 'number'; price.min = '0'; price.max = '99999999.99'; price.step = '0.01'; price.value = service.priceMad ?? '';
+      priceLabel.append(price);
+      const availabilityLabel = element('label', '', 'Disponibilité');
+      const availability = document.createElement('select'); availability.name = 'availability';
+      Object.entries(availabilityLabels).forEach(([value, label]) => {
+        const option = element('option', '', label); option.value = value; option.selected = service.availability === value; availability.append(option);
+      });
+      availabilityLabel.append(availability);
+      const sortLabel = element('label', '', 'Ordre');
+      const sortOrder = document.createElement('input'); sortOrder.name = 'sortOrder'; sortOrder.type = 'number'; sortOrder.min = '0'; sortOrder.max = '65535'; sortOrder.step = '1'; sortOrder.value = String(service.sortOrder);
+      sortLabel.append(sortOrder);
+      const featured = element('label', 'check featured-check');
+      const featuredInput = document.createElement('input'); featuredInput.name = 'isFeatured'; featuredInput.type = 'checkbox'; featuredInput.checked = service.isFeatured;
+      featured.append(featuredInput, element('span', '', 'Mettre en avant'));
+      const actions = element('div', 'service-actions');
+      const save = element('button', 'button primary', 'Enregistrer'); save.type = 'submit';
+      const archive = element('button', 'button ghost service-archive', service.isArchived ? 'Restaurer' : 'Archiver'); archive.type = 'button'; archive.dataset.action = service.isArchived ? 'restore' : 'archive';
+      actions.append(archive, save);
+      meta.append(priceLabel, availabilityLabel, sortLabel, featured, actions);
+
+      form.append(heading, languages, meta);
+      list.append(form);
+    });
+  }
+
   async function loadCatalogue() {
     const response = await request('catalogue.php');
     state.fruits = response.data.fruits;
@@ -209,8 +355,24 @@
     renderOrders();
   }
 
+  async function loadGamePasses() {
+    const response = await request('game-passes.php');
+    state.gamePasses = response.data.gamePasses;
+    state.gamePassReviewCount = response.meta?.reviewCount || 0;
+    byId('game-pass-count').textContent = String(state.gamePasses.length);
+    byId('game-pass-review-count').textContent = String(state.gamePassReviewCount);
+    renderGamePasses();
+  }
+
+  async function loadServices() {
+    const response = await request('services.php');
+    state.services = response.data.services;
+    byId('service-count').textContent = String(state.services.filter((service) => !service.isArchived).length);
+    renderServices();
+  }
+
   async function loadDashboard() {
-    await Promise.all([loadCatalogue(), loadOrders()]);
+    await Promise.all([loadCatalogue(), loadGamePasses(), loadServices(), loadOrders()]);
   }
 
   async function handleAuth(form, endpoint) {
@@ -263,6 +425,89 @@
       } catch (error) {
         toast(error.message, true);
         if (error.code === 'VERSION_CONFLICT') await loadCatalogue();
+      } finally { button.disabled = false; }
+      return;
+    }
+    if (form.matches('.game-pass-editor')) {
+      event.preventDefault();
+      const button = form.querySelector('button'); button.disabled = true;
+      const quantityValue = form.elements.quantity.value;
+      try {
+        const response = await request('game-passes.php', {
+          method: 'POST',
+          body: JSON.stringify({
+            gamePassSlug: form.dataset.slug,
+            priceMad: form.elements.price.value || null,
+            availability: form.elements.availability.value,
+            quantityAvailable: quantityValue === '' ? null : Number(quantityValue),
+            expectedVersion: Number(form.dataset.version)
+          })
+        });
+        const gamePass = state.gamePasses.find((item) => item.id === form.dataset.slug);
+        gamePass.offering = response.data.offering;
+        state.gamePassReviewCount = state.gamePasses.filter((item) => item.offering?.needsOwnerReview).length;
+        byId('game-pass-review-count').textContent = String(state.gamePassReviewCount);
+        renderGamePasses();
+        toast(`${gamePass.name} sauvegardé.`);
+      } catch (error) {
+        toast(error.message, true);
+        if (error.code === 'VERSION_CONFLICT') await loadGamePasses();
+      } finally { button.disabled = false; }
+      return;
+    }
+    if (form.id === 'service-create-form') {
+      event.preventDefault();
+      const button = form.querySelector('button[type="submit"]'); button.disabled = true;
+      try {
+        await request('services.php', {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'create',
+            titleFr: form.elements.titleFr.value,
+            titleAry: form.elements.titleAry.value,
+            descriptionFr: form.elements.descriptionFr.value,
+            descriptionAry: form.elements.descriptionAry.value,
+            priceMad: form.elements.priceMad.value || null,
+            availability: form.elements.availability.value,
+            sortOrder: Number(form.elements.sortOrder.value),
+            isFeatured: form.elements.isFeatured.checked
+          })
+        });
+        form.reset();
+        form.elements.sortOrder.value = '10';
+        form.elements.availability.value = 'hidden';
+        await loadServices();
+        toast('Le service a été créé.');
+      } catch (error) {
+        toast(error.message, true);
+      } finally { button.disabled = false; }
+      return;
+    }
+    if (form.matches('.service-editor')) {
+      event.preventDefault();
+      const button = form.querySelector('button[type="submit"]'); button.disabled = true;
+      try {
+        await request('services.php', {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'update',
+            serviceId: form.dataset.serviceId,
+            expectedVersion: Number(form.dataset.version),
+            titleFr: form.elements.titleFr.value,
+            titleAry: form.elements.titleAry.value,
+            descriptionFr: form.elements.descriptionFr.value,
+            descriptionAry: form.elements.descriptionAry.value,
+            priceMad: form.elements.priceMad.value || null,
+            availability: form.elements.availability.value,
+            sortOrder: Number(form.elements.sortOrder.value),
+            isFeatured: form.elements.isFeatured.checked
+          })
+        });
+        await loadServices();
+        toast('Le service a été mis à jour.');
+      } catch (error) {
+        toast(error.message, true);
+        if (error.code === 'VERSION_CONFLICT') await loadServices();
       } finally { button.disabled = false; }
       return;
     }
@@ -327,13 +572,52 @@
   });
   byId('order-filter').addEventListener('change', () => loadOrders().catch((error) => toast(error.message, true)));
 
-  document.querySelectorAll('[role="tab"]').forEach((tab) => tab.addEventListener('click', () => {
-    const catalogue = tab.id === 'catalogue-tab';
-    byId('catalogue-tab').setAttribute('aria-selected', String(catalogue));
-    byId('orders-tab').setAttribute('aria-selected', String(!catalogue));
-    byId('catalogue-panel').hidden = !catalogue;
-    byId('orders-panel').hidden = catalogue;
-  }));
+  byId('service-list').addEventListener('click', async (event) => {
+    const button = event.target.closest('.service-archive');
+    if (!button) return;
+    const form = button.closest('.service-editor');
+    button.disabled = true;
+    try {
+      await request('services.php', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: button.dataset.action,
+          serviceId: form.dataset.serviceId,
+          expectedVersion: Number(form.dataset.version)
+        })
+      });
+      await loadServices();
+      toast(button.dataset.action === 'archive' ? 'Le service a été archivé.' : 'Le service a été restauré.');
+    } catch (error) {
+      toast(error.message, true);
+      if (error.code === 'VERSION_CONFLICT') await loadServices();
+    } finally { button.disabled = false; }
+  });
+
+  const adminTabs = [...document.querySelectorAll('[role="tab"]')];
+  function selectAdminTab(tab, moveFocus = false) {
+    adminTabs.forEach((item) => {
+      const selected = item === tab;
+      item.setAttribute('aria-selected', String(selected));
+      item.tabIndex = selected ? 0 : -1;
+      byId(item.getAttribute('aria-controls')).hidden = !selected;
+    });
+    if (moveFocus) tab.focus();
+  }
+  adminTabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => selectAdminTab(tab));
+    tab.addEventListener('keydown', (event) => {
+      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      let targetIndex = index;
+      if (event.key === 'Home') targetIndex = 0;
+      else if (event.key === 'End') targetIndex = adminTabs.length - 1;
+      else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') targetIndex = (index - 1 + adminTabs.length) % adminTabs.length;
+      else targetIndex = (index + 1) % adminTabs.length;
+      selectAdminTab(adminTabs[targetIndex], true);
+    });
+  });
+  selectAdminTab(adminTabs[0]);
 
   request('session.php')
     .then(async (response) => {

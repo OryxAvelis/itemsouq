@@ -1,6 +1,6 @@
 # Itemsouq
 
-Itemsouq is a Moroccan Blox Fruits marketplace interface for browsing fruit offers, comparing trades, preparing WhatsApp orders, and managing catalogue availability from a private owner dashboard.
+Itemsouq is a Moroccan Blox Fruits marketplace interface for browsing fruit and Game Pass offers, comparing trades, preparing WhatsApp requests, and managing public listings from a private owner dashboard.
 
 ## Live website
 
@@ -15,12 +15,14 @@ The public storefront is progressively enhanced: its bundled catalogue keeps the
 
 - Responsive French and Moroccan Darija storefront
 - Physical and permanent fruit catalogue
+- Six Game Pass listings with sourced artwork, Robux reference values, and owner-managed MAD prices
+- Empty-by-default Services catalogue with bilingual offers created by the owner
 - Search, rarity/type filters, favourites, comparison, and cart UI
 - Trade calculator and community trade submissions
 - Duplicate fruit quantities in trade offers
 - WhatsApp-assisted ordering with Cash Plus and Wafacash preferences
-- Private owner dashboard for prices, availability, quantities, and order status
-- MySQL-backed catalogue, trade, order, history, session, and rate-limit data
+- Private owner dashboard for fruit prices, Game Pass stock, Services, and order status
+- MySQL-backed catalogue, Game Pass, Service, trade, order, history, session, and rate-limit data
 
 ## Project structure
 
@@ -60,6 +62,8 @@ php -S 127.0.0.1:8012 -t .
 
 Open `http://127.0.0.1:8012/` for the storefront and `http://127.0.0.1:8012/admin/` for the owner dashboard.
 
+Local requests use the XAMPP defaults even when the ignored private configuration contains InfinityFree credentials. Environment variables can still override the local defaults when a different development database is needed.
+
 ## Disclaimer
 
-Itemsouq is an independent project and is not affiliated with Roblox or Blox Fruits. Never share a Roblox password, PIN, one-time code, or sensitive banking information through the website.
+Itemsouq is an independent project and is not affiliated with Roblox or Blox Fruits. Account sales or transfers are not supported. Never share a Roblox password, PIN, one-time code, cookie, or sensitive banking information through the website.

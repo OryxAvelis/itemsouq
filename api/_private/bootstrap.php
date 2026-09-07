@@ -52,17 +52,17 @@ function isq_config(): array
     $fileDb = is_array($fileConfig['db'] ?? null) ? $fileConfig['db'] : [];
     $config = [
         'db' => [
-            'host' => $env('ISQ_DB_HOST') ?? $fileDb['host'] ?? ($local ? '127.0.0.1' : ''),
-            'port' => (int) ($env('ISQ_DB_PORT') ?? $fileDb['port'] ?? 3306),
-            'name' => $env('ISQ_DB_NAME') ?? $fileDb['name'] ?? ($local ? 'itemsouq' : ''),
-            'user' => $env('ISQ_DB_USER') ?? $fileDb['user'] ?? ($local ? 'root' : ''),
-            'password' => $env('ISQ_DB_PASSWORD') ?? $fileDb['password'] ?? '',
+            'host' => $env('ISQ_DB_HOST') ?? ($local ? '127.0.0.1' : ($fileDb['host'] ?? '')),
+            'port' => (int) ($env('ISQ_DB_PORT') ?? ($local ? 3306 : ($fileDb['port'] ?? 3306))),
+            'name' => $env('ISQ_DB_NAME') ?? ($local ? 'itemsouq' : ($fileDb['name'] ?? '')),
+            'user' => $env('ISQ_DB_USER') ?? ($local ? 'root' : ($fileDb['user'] ?? '')),
+            'password' => $env('ISQ_DB_PASSWORD') ?? ($local ? '' : ($fileDb['password'] ?? '')),
         ],
         'app_secret' => $env('ISQ_APP_SECRET')
-            ?? ($fileConfig['app_secret'] ?? ($local ? 'itemsouq-local-development-secret-change-before-deploying' : '')),
+            ?? ($local ? 'itemsouq-local-development-secret-change-before-deploying' : ($fileConfig['app_secret'] ?? '')),
         'setup_token' => $env('ISQ_SETUP_TOKEN')
-            ?? ($fileConfig['setup_token'] ?? ($local ? 'itemsouq-local-setup' : '')),
-        'origin' => rtrim((string) ($env('ISQ_ORIGIN') ?? $fileConfig['origin'] ?? ''), '/'),
+            ?? ($local ? 'itemsouq-local-setup' : ($fileConfig['setup_token'] ?? '')),
+        'origin' => rtrim((string) ($env('ISQ_ORIGIN') ?? ($local ? '' : ($fileConfig['origin'] ?? ''))), '/'),
         'session_name' => (string) ($env('ISQ_SESSION_NAME') ?? $fileConfig['session_name'] ?? 'itemsouq_owner'),
     ];
 
