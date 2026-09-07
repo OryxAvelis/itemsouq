@@ -712,6 +712,7 @@ svg {
 .status-chip {
   display: inline-flex;
   align-items: center;
+  flex: 0 0 auto;
   gap: 6px;
   padding: 6px 9px;
   border: 1px solid rgba(70, 221, 145, 0.2);
@@ -720,14 +721,24 @@ svg {
   color: #81e9b5;
   font-size: 9px;
   font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
-.status-chip span {
+.status-chip > span:first-child {
+  flex: 0 0 6px;
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: #44d58c;
   box-shadow: 0 0 0 4px rgba(68, 213, 140, 0.11);
+}
+
+.status-chip [data-featured-availability-text] {
+  width: auto;
+  height: auto;
+  background: transparent;
+  box-shadow: none;
 }
 
 .fruit-art {
