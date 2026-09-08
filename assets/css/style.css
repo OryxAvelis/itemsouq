@@ -667,6 +667,29 @@ svg {
   pointer-events: none;
 }
 
+.hero-three-layer {
+  position: absolute;
+  z-index: 1;
+  inset: -28px -58px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  contain: strict;
+  mask-image: radial-gradient(ellipse at center, #000 44%, rgba(0, 0, 0, 0.88) 67%, transparent 88%);
+  transition: opacity 0.8s ease;
+}
+
+.hero-three-layer.is-ready {
+  opacity: 0.88;
+}
+
+.hero-three-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  filter: drop-shadow(0 0 12px rgba(109, 74, 255, 0.2));
+}
+
 .showcase-card {
   position: relative;
   z-index: 3;
@@ -3241,6 +3264,8 @@ svg {
   .hero-actions { flex-direction: column; align-items: stretch; }
   .hero-trust { display: grid; grid-template-columns: 1fr; max-width: 270px; margin-inline: auto; text-align: left; }
   .hero-showcase { min-height: 400px; }
+  .hero-three-layer { inset: -8px -18px; }
+  .hero-three-layer.is-ready { opacity: 0.72; }
   .showcase-card { max-width: 350px; }
   .fruit-art { width: 210px; height: 210px; }
   .fruit-art::before { width: 140px; height: 140px; }
@@ -3296,6 +3321,10 @@ svg {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .hero-three-layer {
+    display: none;
+  }
+
   .hero .hero-copy > *,
   .hero .hero-showcase,
   .hero .hero-stats > div,
