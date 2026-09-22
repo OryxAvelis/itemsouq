@@ -6,10 +6,10 @@ This backend covers owner-managed fruit and Game Pass prices/availability, a gen
 
 The migration files are intentionally idempotent and create only `isq_` tables. Existing legacy tables are not altered or dropped.
 
-From `C:\xampp\htdocs\itemsouq`, run the six files in order with phpMyAdmin or the XAMPP MySQL client:
+From `C:\xampp\htdocs\itemsouq`, run the seven files in order with phpMyAdmin or the XAMPP MySQL client:
 
 ```powershell
-& 'C:\xampp\mysql\bin\mysql.exe' -h 127.0.0.1 -u root itemsouq --execute="source database/migrations/001_core.sql; source database/migrations/002_catalogue.sql; source database/migrations/003_trading.sql; source database/migrations/004_orders.sql; source database/migrations/005_seed_fruits.sql; source database/migrations/006_game_passes_services.sql;"
+& 'C:\xampp\mysql\bin\mysql.exe' -h 127.0.0.1 -u root itemsouq --execute="source database/migrations/001_core.sql; source database/migrations/002_catalogue.sql; source database/migrations/003_trading.sql; source database/migrations/004_orders.sql; source database/migrations/005_seed_fruits.sql; source database/migrations/006_game_passes_services.sql; source database/migrations/007_add_magnet_fruit.sql;"
 ```
 
 The local defaults are database `itemsouq`, user `root`, blank password, and one-time setup token `itemsouq-local-setup`. Open `/admin/`, create the sole owner account, and choose a password of at least 12 characters.
@@ -28,9 +28,11 @@ The local defaults are database `itemsouq`, user `root`, blank password, and one
 
 ## Seed policy
 
-`005_seed_fruits.sql` contains the 41 Fandom reference fruits and 82 physical/permanent offerings. Prices and quantities reproduce the previous browser prototype, but every offering starts with `needs_owner_review = 1`. Until the owner saves it, the public API safely presents it as `on_request` with no available quantity. Saving it in the owner dashboard records an immutable history snapshot and clears the review marker.
+`005_seed_fruits.sql` contains the initial 41 Fandom reference fruits and 82 physical/permanent offerings. Prices and quantities reproduce the previous browser prototype, but every offering starts with `needs_owner_review = 1`. Until the owner saves it, the public API safely presents it as `on_request` with no available quantity. Saving it in the owner dashboard records an immutable history snapshot and clears the review marker.
 
 `006_game_passes_services.sql` adds six Game Pass reference records sourced from the Blox Fruits Wiki category/shop information. Their Robux values are reference metadata, not Itemsouq prices. MAD prices begin empty and every Game Pass offering requires owner review. The same migration adds an initially empty generic Services catalogue with French and Moroccan Darija copy, versioned edits, and soft archiving. Services have no account, password, cookie, security-code, or customer credential fields; the API rejects account-transfer and credential-oriented copy in either language field.
+
+`007_add_magnet_fruit.sql` adds the Magnet fruit introduced in Blox Fruits Update 30, together with physical and permanent offerings that remain safely unavailable until the owner reviews their MAD prices and stock.
 
 Rerunning the seed refreshes canonical Fandom metadata but does not overwrite an owner-edited offering. Production contains no demo trades, responses, orders, customer records, or invented reputation figures.
 

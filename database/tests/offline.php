@@ -14,10 +14,10 @@ $assert = static function (bool $condition, string $message) use (&$failures, &$
 
 $migrationFiles = glob($migrationDirectory . '/*.sql') ?: [];
 sort($migrationFiles);
-$assert(count($migrationFiles) === 6, 'Expected exactly six numbered migrations.');
+$assert(count($migrationFiles) === 7, 'Expected exactly seven numbered migrations.');
 $expectedNames = [
     '001_core.sql', '002_catalogue.sql', '003_trading.sql', '004_orders.sql',
-    '005_seed_fruits.sql', '006_game_passes_services.sql',
+    '005_seed_fruits.sql', '006_game_passes_services.sql', '007_add_magnet_fruit.sql',
 ];
 $assert(array_map('basename', $migrationFiles) === $expectedNames, 'Migration names or ordering changed.');
 
@@ -49,20 +49,41 @@ $assert(count($gamePassOfferingRows[0]) === 6, 'Seed must contain six owner-revi
 $assert(!preg_match('/INSERT\\s+INTO\\s+isq_services\\b/i', $marketplaceSeed), 'Services catalogue must start without seeded listings.');
 $assert(str_contains($marketplaceSeed, 'Services intentionally contain no'), 'Services credential-safety schema note is missing.');
 
+$magnetSeed = (string) file_get_contents($migrationDirectory . '/007_add_magnet_fruit.sql');
+$assert(
+    str_contains($magnetSeed, "(42, 'magnet', 'Magnet', 'Mythical', 'Natural', 6000000, 3500, 'assets/images/fruits/magnet.webp', 42)"),
+    'Magnet reference metadata is missing or incorrect.'
+);
+preg_match_all("/^\\s{4}\\(42, '(?:physical|permanent)', NULL, 'on_request', NULL, 1, 1\\)/m", $magnetSeed, $magnetOfferingRows);
+$assert(count($magnetOfferingRows[0]) === 2, 'Magnet migration must contain two owner-review offerings.');
+
 $combinedInstaller = str_replace("\r\n", "\n", (string) file_get_contents(dirname(__DIR__) . '/itemsouq-infinityfree.sql'));
 $marketplaceMarker = '-- Source: database\\migrations\\006_game_passes_services.sql';
-$markerPosition = strpos($combinedInstaller, $marketplaceMarker);
-$combinedMarketplace = $markerPosition === false
+$magnetMarker = '-- Source: database\\migrations\\007_add_magnet_fruit.sql';
+$marketplacePosition = strpos($combinedInstaller, $marketplaceMarker);
+$magnetPosition = strpos($combinedInstaller, $magnetMarker);
+$combinedMarketplace = $marketplacePosition === false || $magnetPosition === false
     ? ''
-    : trim(substr($combinedInstaller, $markerPosition + strlen($marketplaceMarker)));
-$assert($markerPosition !== false, 'Combined InfinityFree installer is missing migration 006.');
+    : trim(substr(
+        $combinedInstaller,
+        $marketplacePosition + strlen($marketplaceMarker),
+        $magnetPosition - ($marketplacePosition + strlen($marketplaceMarker))
+    ));
+$combinedMagnet = $magnetPosition === false
+    ? ''
+    : trim(substr($combinedInstaller, $magnetPosition + strlen($magnetMarker)));
+$assert($marketplacePosition !== false, 'Combined InfinityFree installer is missing migration 006.');
 $assert($combinedMarketplace === trim(str_replace("\r\n", "\n", $marketplaceSeed)), 'Combined InfinityFree migration 006 differs from its source file.');
+$assert($magnetPosition !== false, 'Combined InfinityFree installer is missing migration 007.');
+$assert($combinedMagnet === trim(str_replace("\r\n", "\n", $magnetSeed)), 'Combined InfinityFree migration 007 differs from its source file.');
 
 $fruitSource = (string) file_get_contents($root . '/assets/js/fruits.js');
 preg_match_all("/\\{ id: '([a-z0-9-]+)', name:/", $fruitSource, $sourceSlugs);
 preg_match_all("/^\\s{4}\\(\\d+, '([a-z0-9-]+)', '[^']+', '(?:Common|Uncommon|Rare|Legendary|Mythical)'/m", $seed, $seedSlugs);
-$assert(count($sourceSlugs[1]) === 41, 'Browser reference catalogue must contain 41 fruit IDs.');
-$assert($sourceSlugs[1] === $seedSlugs[1], 'Database and browser fruit slug ordering differs.');
+preg_match("/\\(42, '([a-z0-9-]+)', 'Magnet'/", $magnetSeed, $magnetSlug);
+$databaseSlugs = array_merge($seedSlugs[1], isset($magnetSlug[1]) ? [$magnetSlug[1]] : []);
+$assert(count($sourceSlugs[1]) === 42, 'Browser reference catalogue must contain 42 fruit IDs.');
+$assert($sourceSlugs[1] === $databaseSlugs, 'Database and browser fruit slug ordering differs.');
 
 require_once $root . '/api/_private/bootstrap.php';
 require_once $root . '/api/_private/game_pass_service.php';

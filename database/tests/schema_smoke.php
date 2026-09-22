@@ -36,8 +36,8 @@ $counts = [
     'gamePassReview' => (int) $pdo->query('SELECT COUNT(*) FROM isq_game_pass_offerings WHERE needs_owner_review = 1')->fetchColumn(),
     'services' => (int) $pdo->query('SELECT COUNT(*) FROM isq_services')->fetchColumn(),
 ];
-if ($counts['migrations'] !== 6 || $counts['fruits'] !== 41 || $counts['offerings'] !== 82
-    || $counts['review'] < 0 || $counts['review'] > 82
+if ($counts['migrations'] !== 7 || $counts['fruits'] !== 42 || $counts['offerings'] !== 84
+    || $counts['review'] < 0 || $counts['review'] > 84
     || $counts['gamePasses'] !== 6 || $counts['gamePassOfferings'] !== 6
     || $counts['gamePassReview'] < 0 || $counts['gamePassReview'] > 6 || $counts['services'] < 0) {
     fwrite(STDERR, 'Unexpected seed counts: ' . json_encode($counts) . "\n");
@@ -84,8 +84,8 @@ if ($counts['services'] === 0 && ($publicServices['services'] !== [] || $ownerSe
 
 $publicCatalogue = isq_catalogue_data(false);
 $ownerCatalogue = isq_catalogue_data(true);
-if (count($publicCatalogue['fruits']) !== 41 || count($ownerCatalogue['fruits']) !== 41) {
-    fwrite(STDERR, "Catalogue service did not return all 41 fruits.\n");
+if (count($publicCatalogue['fruits']) !== 42 || count($ownerCatalogue['fruits']) !== 42) {
+    fwrite(STDERR, "Catalogue service did not return all 42 fruits.\n");
     exit(1);
 }
 $ownerBySlug = array_column($ownerCatalogue['fruits'], null, 'id');

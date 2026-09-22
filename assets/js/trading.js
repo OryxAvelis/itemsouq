@@ -2430,7 +2430,7 @@
   }
 
   function validateDataset() {
-    if (fruits.length !== 41) console.warn(`Itemsouq Trading: expected 41 fruits, received ${fruits.length}.`);
+    if (fruits.length !== 42) console.warn(`Itemsouq Trading: expected 42 fruits, received ${fruits.length}.`);
   }
 
   async function init() {

@@ -8,7 +8,7 @@ window.ITEMSOUQ_FRUIT_SOURCE = {
   url: 'https://blox-fruits.fandom.com/wiki/Blox_Fruits',
   imageApi: 'https://blox-fruits.fandom.com/api.php',
   localImageDirectory: 'assets/images/fruits',
-  reviewedAt: '2026-08-30'
+  reviewedAt: '2026-09-22'
 };
 
 window.ITEMSOUQ_FRUITS = [
@@ -56,5 +56,6 @@ window.ITEMSOUQ_FRUITS = [
   { id: 'yeti', name: 'Yeti', rarity: 'Mythical', type: 'Beast', beli: 5000000, robux: 3000 },
   { id: 'kitsune', name: 'Kitsune', rarity: 'Mythical', type: 'Beast', beli: 8000000, robux: 4000 },
   { id: 'control', name: 'Control', rarity: 'Mythical', type: 'Natural', beli: 9000000, robux: 4000 },
-  { id: 'dragon', name: 'Dragon', rarity: 'Mythical', type: 'Beast', beli: 15000000, robux: 5000 }
+  { id: 'dragon', name: 'Dragon', rarity: 'Mythical', type: 'Beast', beli: 15000000, robux: 5000 },
+  { id: 'magnet', name: 'Magnet', rarity: 'Mythical', type: 'Natural', beli: 6000000, robux: 3500 }
 ];

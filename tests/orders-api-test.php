@@ -22,8 +22,8 @@ for ($index = 0; $index < 20; $index++) {
 
 $fruitsSource = file_get_contents(__DIR__ . '/../assets/js/fruits.js');
 preg_match_all("/\{ id: '([a-z0-9-]+)', name:/", (string) $fruitsSource, $fruitMatches);
-$assert(count($fruitMatches[1]) === 41, 'The storefront must expose exactly 41 immutable fruit IDs.');
-$assert(count(array_unique($fruitMatches[1])) === 41, 'Fruit IDs must be unique.');
+$assert(count($fruitMatches[1]) === 42, 'The storefront must expose exactly 42 immutable fruit IDs.');
+$assert(count(array_unique($fruitMatches[1])) === 42, 'Fruit IDs must be unique.');
 
 $appSource = file_get_contents(__DIR__ . '/../assets/js/app.js');
 $assert(!str_contains((string) $appSource, 'data-order-advance'), 'Customers must not receive an order-status advance control.');

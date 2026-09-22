@@ -2443,8 +2443,8 @@
   }
 
   function validateDataset() {
-    if (fruits.length !== 41) {
-      console.warn(`Itemsouq: expected 41 fruits, received ${fruits.length}.`);
+    if (fruits.length !== 42) {
+      console.warn(`Itemsouq: expected 42 fruits, received ${fruits.length}.`);
     }
     const ids = fruits.map((fruit) => fruit?.id);
     if (ids.some((id) => typeof id !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) || new Set(ids).size !== ids.length) {
