@@ -1021,8 +1021,6 @@
         <img data-fruit-image src="${fruitImagePath(fruit)}" alt="${l('aria.fruitIllustration', `Illustration du fruit ${fruit.name}`, { fruit: fruit.name })}" width="512" height="512">
       </div>
       <div class="quick-view-details">
-        <span class="rarity-tag ${classes.tag}">${rarityLabel(fruit.rarity)}</span>
-        <h3>${fruit.name}</h3>
         <p>${l('quick.description', `${typeLabel(fruit.type)} · ${availabilityLabel(offer)} · ${l('mode.physicalLong', 'Fruit physique')} ou ${l('mode.permanentLong', 'fruit permanent').toLowerCase()}.`, { type: typeLabel(fruit.type), stock: availabilityLabel(offer), physical: l('mode.physicalLong', 'Fruit physique'), permanent: l('mode.permanentLong', 'fruit permanent').toLowerCase() })}</p>
         <div class="quick-view-mode" role="group" aria-label="${l('aria.fruitFormatNamed', `Format de ${fruit.name}`, { fruit: fruit.name })}">
           <button type="button" class="${mode === 'physical' ? 'active' : ''}" data-quick-mode="physical" aria-pressed="${mode === 'physical'}"><i class="fa-solid fa-box-open" aria-hidden="true"></i> ${l('mode.physical', 'Physique')}</button>
@@ -1049,7 +1047,11 @@
     if (!activeQuickView) return;
     const fruit = fruitById.get(activeQuickView.id);
     if (!fruit) return;
+    const classes = fruitVisualClasses(fruit);
     byId('quick-view-title').textContent = fruit.name;
+    const rarity = byId('quick-view-rarity');
+    rarity.className = `rarity-tag ${classes.tag}`;
+    rarity.textContent = rarityLabel(fruit.rarity);
     byId('quick-view-body').innerHTML = quickViewMarkup(fruit, activeQuickView.mode);
     wireFruitImageFallbacks(byId('quick-view-body'));
   }

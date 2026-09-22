@@ -628,7 +628,13 @@
   <div class="modal-shell feature-modal" id="quick-view-modal" role="dialog" aria-modal="true" aria-labelledby="quick-view-title" hidden>
     <div class="modal-card quick-view-card">
       <div class="modal-head">
-        <div><span class="drawer-kicker" data-i18n="quick.kicker">APERÇU DU FRUIT</span><h2 id="quick-view-title" tabindex="-1">Fruit</h2></div>
+        <div class="quick-view-heading">
+          <span class="drawer-kicker" data-i18n="quick.kicker">APERÇU DU FRUIT</span>
+          <div class="quick-view-title-row">
+            <h2 id="quick-view-title" tabindex="-1">Fruit</h2>
+            <span class="rarity-tag rarity-common" id="quick-view-rarity">Commun</span>
+          </div>
+        </div>
         <button class="feature-modal-close" type="button" data-close-quick-view aria-label="Fermer" data-i18n-aria="aria.close"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
       </div>
       <div class="quick-view-body" id="quick-view-body"></div>
