@@ -1739,21 +1739,60 @@ svg {
 .fruit-grid[aria-busy="true"] { opacity: 0.72; }
 
 .fruit-card {
+  --rarity-accent: #64748b;
+  --rarity-accent-rgb: 100, 116, 139;
+  --rarity-surface: #f8fafc;
+  --rarity-surface-strong: #e2e8f0;
   position: relative;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(var(--rarity-accent-rgb), 0.22);
   border-radius: 18px;
-  background: #fff;
+  background: linear-gradient(180deg, #fff 0%, var(--rarity-surface) 100%);
   overflow: hidden;
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
+.fruit-card--common {
+  --rarity-accent: #64748b;
+  --rarity-accent-rgb: 100, 116, 139;
+  --rarity-surface: #f8fafc;
+  --rarity-surface-strong: #dce4ed;
+}
+
+.fruit-card--uncommon {
+  --rarity-accent: #16a34a;
+  --rarity-accent-rgb: 22, 163, 74;
+  --rarity-surface: #f0fdf4;
+  --rarity-surface-strong: #bbf7d0;
+}
+
+.fruit-card--rare {
+  --rarity-accent: #2563eb;
+  --rarity-accent-rgb: 37, 99, 235;
+  --rarity-surface: #eff6ff;
+  --rarity-surface-strong: #bfdbfe;
+}
+
+.fruit-card--legendary {
+  --rarity-accent: #7c3aed;
+  --rarity-accent-rgb: 124, 58, 237;
+  --rarity-surface: #f7f2ff;
+  --rarity-surface-strong: #ddd0ff;
+}
+
+.fruit-card--mythical {
+  --rarity-accent: #e60023;
+  --rarity-accent-rgb: 230, 0, 35;
+  --rarity-surface: #fff2f4;
+  --rarity-surface-strong: #ffbec8;
+}
+
 .fruit-card:hover {
   transform: translateY(-5px);
-  border-color: #d8d0fb;
-  box-shadow: 0 22px 46px rgba(19, 29, 56, 0.12);
+  border-color: rgba(var(--rarity-accent-rgb), 0.54);
+  box-shadow: 0 22px 46px rgba(var(--rarity-accent-rgb), 0.16);
 }
 
 .fruit-card-head {
@@ -1772,8 +1811,10 @@ svg {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 5px 8px;
-  border-radius: 7px;
+  padding: 6px 9px;
+  border: 1px solid rgba(255,255,255,0.58);
+  border-radius: 999px;
+  box-shadow: 0 6px 14px rgba(20, 28, 48, 0.12);
   font-size: 8px;
   font-weight: 800;
   text-transform: uppercase;
@@ -1785,14 +1826,15 @@ svg {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: currentColor;
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.2);
 }
 
-.rarity-common { background: #eef1f5; color: #667184; }
-.rarity-uncommon { background: #e8f1ff; color: #3573cb; }
-.rarity-rare { background: #f1eaff; color: #7745cf; }
-.rarity-legendary { background: #ffe9f5; color: #c13c85; }
-.rarity-mythical { background: #ffe9ed; color: #d43a52; }
+.rarity-common { background: #64748b; color: #fff; }
+.rarity-uncommon { background: #15803d; color: #fff; }
+.rarity-rare { background: #1d4ed8; color: #fff; }
+.rarity-legendary { background: #6d28d9; color: #fff; }
+.rarity-mythical { background: #e60023; color: #fff; }
 
 .favorite-button {
   width: 34px;
@@ -1828,6 +1870,8 @@ svg {
   overflow: hidden;
 }
 
+.fruit-visual::selection { background: transparent; }
+
 .fruit-visual::before,
 .fruit-visual::after {
   content: '';
@@ -1851,11 +1895,16 @@ svg {
   border: 1px solid rgba(255,255,255,0.34);
 }
 
-.visual-common { background: linear-gradient(145deg, #eef2f6, #dde3eb); }
-.visual-uncommon { background: linear-gradient(145deg, #e6f2ff, #c7dff8); }
-.visual-rare { background: linear-gradient(145deg, #efe8ff, #d7c6ff); }
-.visual-legendary { background: linear-gradient(145deg, #ffe9f5, #f4c5df); }
-.visual-mythical { background: linear-gradient(145deg, #ffe8ed, #f4bdc8); }
+.visual-common { background: linear-gradient(145deg, #f8fafc 0%, #dce4ed 72%, #cbd5e1 100%); }
+.visual-uncommon { background: linear-gradient(145deg, #f0fdf4 0%, #bbf7d0 72%, #86efac 100%); }
+.visual-rare { background: linear-gradient(145deg, #eff6ff 0%, #bfdbfe 70%, #93c5fd 100%); }
+.visual-legendary { background: linear-gradient(145deg, #faf5ff 0%, #ddd0ff 68%, #c4b5fd 100%); }
+.visual-mythical { background: linear-gradient(145deg, #fff4f5 0%, #ffbec8 66%, #ff7489 100%); }
+
+.fruit-card--mythical .fruit-visual::before,
+.fruit-card--mythical .fruit-visual::after {
+  border-color: rgba(230, 0, 35, 0.22);
+}
 
 .fruit-core {
   position: relative;
@@ -1957,6 +2006,20 @@ svg {
   display: flex;
   flex-direction: column;
   padding: 17px 17px 16px;
+  border-top: 1px solid rgba(var(--rarity-accent-rgb), 0.13);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(var(--rarity-accent-rgb), 0.10), transparent 42%),
+    linear-gradient(180deg, #fff 0%, var(--rarity-surface) 100%);
+}
+
+.fruit-card .mode-label {
+  background: rgba(var(--rarity-accent-rgb), 0.11);
+  color: var(--rarity-accent);
+}
+
+.fruit-card .official-value {
+  border: 1px solid rgba(var(--rarity-accent-rgb), 0.12);
+  background: rgba(255,255,255,0.78);
 }
 
 .fruit-title-row {

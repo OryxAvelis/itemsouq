@@ -625,7 +625,7 @@
       : l('aria.addFavorite', `Ajouter ${fruit.name} aux favoris`, { fruit: fruit.name });
 
     return `
-      <article class="fruit-card" id="fruit-${id}" data-fruit-id="${id}">
+      <article class="fruit-card fruit-card--${fruit.rarity.toLowerCase()}" id="fruit-${id}" data-fruit-id="${id}" data-rarity="${fruit.rarity.toLowerCase()}">
         <div class="fruit-card-head">
           <span class="rarity-tag ${classes.tag}">${rarityLabel(fruit.rarity)}</span>
           <span class="fruit-card-head-actions">
