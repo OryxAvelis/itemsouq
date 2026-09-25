@@ -11,6 +11,8 @@ Itemsouq is a Moroccan Blox Fruits marketplace interface for browsing fruit and 
 
 The public storefront is progressively enhanced: its bundled catalogue keeps the main browsing experience available when the hosting provider or database is temporarily unreachable. Database-backed catalogue updates, orders, trades, and the owner dashboard require the PHP API to be online.
 
+Official Beli/Robux shop prices remain separate from community trading values. The catalogue uses the [Blox Fruits Wiki](https://blox-fruits.fandom.com/wiki/Blox_Fruits) for official reference data, while the calculator and trading views use [DarkKitsune](https://darkkitsune.com/fruits) community values and gameplay scores. Community values can change with demand and are not a guaranteed exchange rate.
+
 ## Features
 
 - Responsive French and Moroccan Darija storefront
@@ -18,7 +20,8 @@ The public storefront is progressively enhanced: its bundled catalogue keeps the
 - Six Game Pass listings with sourced artwork, Robux reference values, and owner-managed MAD prices
 - Empty-by-default Services catalogue with bilingual offers created by the owner
 - Search, rarity/type filters, favourites, comparison, and cart UI
-- Trade calculator and community trade submissions
+- Trade calculator and community trade submissions using DarkKitsune physical/permanent market values
+- Rarity plus overall, PvE, and PvP scores displayed alongside trade values
 - Duplicate fruit quantities in trade offers
 - WhatsApp-assisted ordering with Cash Plus and Wafacash preferences
 - Private owner dashboard for fruit prices, Game Pass stock, Services, and order status

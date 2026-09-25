@@ -478,6 +478,8 @@
 .calc-fruit-copy small { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 3px; color: #7b8597; font-size: 8px; line-height: 1.3; }
 .calc-fruit-copy small span { color: #7154e9; font-weight: 800; }
 .calc-fruit-copy small b { color: #c2c8d3; }
+.calc-fruit-copy .calc-fruit-score { color: #8a6f23; font-size: 7px; font-weight: 700; }
+.calc-fruit-score i { margin-right: 4px; color: #d89a13; }
 
 .calc-quantity,
 .calc-quantity-control {
@@ -813,6 +815,7 @@
 .calc-picker-option:hover:not(.is-disabled) { transform: translateY(-1px); border-color: #baaafa; background: #faf8ff; }
 .calc-picker-option.is-selected { border-color: #8a6eff; background: #f0ecff; box-shadow: inset 0 0 0 1px rgba(109,74,255,.12); }
 .calc-picker-option.is-disabled { opacity: .38; cursor: default; }
+.calc-picker-option.is-unavailable { border-color: #eadfbf; background: #fffaf0; opacity: .68; }
 
 .calc-picker-choice {
   min-width: 0;
@@ -837,6 +840,7 @@
 .calc-picker-copy { min-width: 0; display: grid; flex: 1 1 auto; }
 .calc-picker-copy strong { overflow: hidden; font-family: var(--font-display); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .calc-picker-copy small { margin-top: 3px; overflow: hidden; color: #768198; font-size: 7.5px; text-overflow: ellipsis; white-space: nowrap; }
+.calc-picker-copy .calc-picker-score { color: #846f38; font-size: 6.8px; font-weight: 700; }
 .calc-picker-check { width: 25px; height: 25px; display: grid; place-items: center; flex: 0 0 25px; border: 1px solid #dfe3ec; border-radius: 8px; color: #8490a3; font-size: 8px; }
 .calc-picker-option.is-selected .calc-picker-check { border-color: var(--violet); background: var(--violet); color: #fff; }
 

@@ -454,18 +454,36 @@
 
   function modeCopy(mode) {
     return mode === 'permanent'
-      ? { label: l('trading.mode.permanent', 'Permanent'), icon: 'fa-infinity', unit: 'Robux' }
-      : { label: l('trading.mode.physical', 'Physique'), icon: 'fa-box-open', unit: 'Beli' };
+      ? { label: l('trading.mode.permanent', 'Permanent'), icon: 'fa-infinity', unit: l('trading.value.permanent', 'permanentes') }
+      : { label: l('trading.mode.physical', 'Physique'), icon: 'fa-box-open', unit: l('trading.value.physical', 'physiques') };
   }
 
   function valueFor(fruit, mode) {
-    return mode === 'permanent' ? fruit.robux : fruit.beli;
+    const value = fruit?.trade?.[mode];
+    return Number.isFinite(Number(value)) ? Number(value) : null;
+  }
+
+  function hasTradeValue(fruit, mode) {
+    const value = valueFor(fruit, mode);
+    return Number.isFinite(value) && value > 0;
+  }
+
+  function scoreSummary(fruit) {
+    const trade = fruit?.trade;
+    if (!trade || !Number.isFinite(Number(trade.rating))) {
+      return l('calculator.score.pending', 'Scores en attente');
+    }
+    return l('calculator.score.summary', 'Score {rating}/10 · PvE {pve}/10 · PvP {pvp}/10', {
+      rating: trade.rating,
+      pve: trade.pve,
+      pvp: trade.pvp
+    });
   }
 
   function linesValue(lines, mode) {
     return lines.reduce((total, line) => {
       const fruit = fruitById.get(line.fruitId);
-      return fruit ? total + valueFor(fruit, mode) * line.quantity : total;
+      return fruit ? total + (valueFor(fruit, mode) || 0) * line.quantity : total;
     }, 0);
   }
 
@@ -475,7 +493,10 @@
   }
 
   function formatValue(value, mode) {
-    return `${formatNumber(value)} ${modeCopy(mode).unit}`;
+    void mode;
+    return Number.isFinite(Number(value))
+      ? formatNumber(value)
+      : l('calculator.value.unavailable', 'Valeur indisponible');
   }
 
   function initials(username) {
@@ -637,10 +658,14 @@
       const quantity = line.quantity > 1
         ? `<b aria-label="${escapeHtml(l('trading.quantityAria', `Quantité ${line.quantity}`, { count: line.quantity }))}">×${line.quantity}</b>`
         : '';
+      const baseValue = valueFor(fruit, mode);
+      const displayedValue = hasTradeValue(fruit, mode)
+        ? formatValue(baseValue * line.quantity, mode)
+        : l('calculator.value.unavailable', 'Valeur indisponible');
       return `
         <div class="trade-fruit-mini">
           <span class="trade-fruit-mini-img"><img src="${fruitImagePath(fruit)}" alt="" width="512" height="512" loading="lazy" decoding="async">${quantity}</span>
-          <span><strong>${escapeHtml(fruit.name)}</strong><small>${escapeHtml(rarityLabel(fruit.rarity))} · ${formatValue(valueFor(fruit, mode) * line.quantity, mode)}</small></span>
+          <span><strong>${escapeHtml(fruit.name)}</strong><small>${escapeHtml(rarityLabel(fruit.rarity))} · ${escapeHtml(displayedValue)}</small></span>
         </div>`;
     }).join('');
   }
@@ -651,7 +676,7 @@
       <div class="trade-side">
         <span class="trade-side-label ${offered ? 'give' : 'want'}"><i class="fa-solid ${offered ? 'fa-arrow-up' : 'fa-arrow-down'}" aria-hidden="true"></i>${offered ? l('trading.give', 'Propose') : l('trading.want', 'Recherche')}</span>
         <div class="trade-fruit-stack">${fruitRows(lines, mode)}</div>
-        <div class="trade-side-value"><span>${l('trading.wikiValue', 'Valeur wiki')}</span><strong>${formatValue(linesValue(lines, mode), mode)}</strong></div>
+        <div class="trade-side-value"><span>${l('trading.wikiValue', 'Valeur communautaire')}</span><strong>${formatValue(linesValue(lines, mode), mode)}</strong></div>
       </div>`;
   }
 
@@ -1077,6 +1102,7 @@
     if (!container) return;
     const selected = pickerSelection(kind);
     const opposite = pickerOpposite(kind);
+    const mode = pickerMode(kind);
     const usedSlots = selectionSlots(selected);
     const normalized = query.trim().toLocaleLowerCase('fr');
     const matches = fruits.filter((fruit) => !normalized || fruit.name.toLocaleLowerCase('fr').includes(normalized));
@@ -1092,25 +1118,30 @@
       const fruitId = slugify(fruit.name);
       const isSelected = selected.has(fruitId);
       const quantity = selected.get(fruitId) || 0;
-      const unavailableReason = !isSelected && opposite.has(fruitId)
-        ? 'opposite'
-        : !isSelected && usedSlots >= MAX_FRUITS
-          ? 'full'
-          : '';
+      const sourceUnavailable = !hasTradeValue(fruit, mode);
+      const unavailableReason = sourceUnavailable
+        ? 'source'
+        : !isSelected && opposite.has(fruitId)
+          ? 'opposite'
+          : !isSelected && usedSlots >= MAX_FRUITS
+            ? 'full'
+            : '';
       const isUnavailable = Boolean(unavailableReason);
-      const isTabStop = !hasTabStop;
+      const isTabStop = !hasTabStop && !isUnavailable;
       if (isTabStop) hasTabStop = true;
       const pickerLabel = isSelected
         ? l('trading.picker.removeAria', `Retirer ${fruit.name}`, { fruit: fruit.name })
-        : unavailableReason === 'opposite'
+        : unavailableReason === 'source'
+          ? l('calculator.value.sourcePending', `Valeur DarkKitsune en attente pour ${fruit.name}`, { fruit: fruit.name })
+          : unavailableReason === 'opposite'
           ? l('trading.picker.oppositeAria', `${fruit.name} indisponible : déjà sélectionné de l’autre côté`, { fruit: fruit.name })
           : unavailableReason === 'full'
             ? l('trading.picker.fullAria', `${fruit.name} indisponible : les ${MAX_FRUITS} places sont utilisées`, { fruit: fruit.name, limit: MAX_FRUITS })
             : l('trading.picker.addAria', `Ajouter ${fruit.name}`, { fruit: fruit.name });
       return `
-        <button class="fruit-picker-option${isSelected ? ' is-selected' : ''}" type="button" data-picker="${kind}" data-fruit-id="${escapeHtml(fruitId)}" aria-pressed="${isSelected}" aria-label="${escapeHtml(pickerLabel)}"${isUnavailable ? ` title="${escapeHtml(pickerLabel)}" aria-disabled="true"` : ''} tabindex="${isTabStop ? '0' : '-1'}">
+        <button class="fruit-picker-option${isSelected ? ' is-selected' : ''}${sourceUnavailable ? ' is-source-pending' : ''}" type="button" data-picker="${kind}" data-fruit-id="${escapeHtml(fruitId)}" aria-pressed="${isSelected}" aria-label="${escapeHtml(pickerLabel)}" title="${escapeHtml(sourceUnavailable ? pickerLabel : scoreSummary(fruit))}"${isUnavailable ? ' aria-disabled="true" disabled' : ''} tabindex="${isTabStop ? '0' : '-1'}">
           <img src="${fruitImagePath(fruit)}" alt="" width="512" height="512" loading="lazy" decoding="async">
-          <span><strong>${escapeHtml(fruit.name)}</strong><small>${escapeHtml(rarityLabel(fruit.rarity))}</small></span>
+          <span><strong>${escapeHtml(fruit.name)}</strong><small>${escapeHtml(rarityLabel(fruit.rarity))} · ${escapeHtml(sourceUnavailable ? l('calculator.value.unavailable', 'Valeur indisponible') : formatValue(valueFor(fruit, mode), mode))}</small></span>
           <span class="picker-check" aria-hidden="true"><i class="fa-solid fa-check"></i>${quantity > 1 ? `<b>×${quantity}</b>` : ''}</span>
         </button>`;
     }).join('');
@@ -1128,6 +1159,11 @@
   function togglePickerFruit(kind, fruitId) {
     const selected = pickerSelection(kind);
     if (!fruitById.has(fruitId)) return;
+    const fruit = fruitById.get(fruitId);
+    if (!hasTradeValue(fruit, pickerMode(kind))) {
+      showToast(l('calculator.value.sourcePending', 'Valeur DarkKitsune en attente pour {fruit}', { fruit: fruit.name }), 'warning');
+      return;
+    }
     if (selected.has(fruitId)) {
       selected.delete(fruitId);
     } else {
@@ -1162,7 +1198,6 @@
         target.focus();
       }
     });
-    const fruit = fruitById.get(fruitId);
     const usedSlots = selectionSlots(selected);
     if (fruit) {
       announce(selected.has(fruitId)
@@ -1256,7 +1291,7 @@
     byId('create-value-preview').innerHTML = `
       <span>${escapeHtml(l('trading.giveYou', 'Tu proposes'))}<strong>${formatValue(offeredValue, mode)}</strong></span>
       <b class="trade-value-gap"><i class="fa-solid fa-chart-simple" aria-hidden="true"></i>${escapeHtml(offeredValue && wantedValue
-        ? l('trading.wikiGap', `Écart wiki ${gap}%`, { gap })
+        ? l('trading.wikiGap', `Écart de valeur ${gap}%`, { gap })
         : l('trading.addBothSides', 'Ajoute les deux côtés'))}</b>
       <span>${escapeHtml(l('trading.wantYou', 'Tu recherches'))}<strong>${formatValue(wantedValue, mode)}</strong></span>`;
   }
@@ -1650,7 +1685,7 @@
         ${sideMarkup(trade.wanted, trade.mode, 'want')}
       </div>
       ${displayTradeNote(trade) ? `<p class="detail-note"><i class="fa-regular fa-message" aria-hidden="true"></i> ${escapeHtml(displayTradeNote(trade))}</p>` : ''}
-      <p class="detail-value-note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><span>${escapeHtml(l('trading.detail.wikiNotice', `Les valeurs ${mode.unit} viennent du wiki Blox Fruits sur Fandom. Elles servent uniquement de repère et ne déterminent pas la demande réelle entre joueurs.`, { unit: mode.unit }))}</span></p>
+      <p class="detail-value-note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><span>${escapeHtml(l('trading.detail.wikiNotice', `Les valeurs communautaires ${mode.unit} viennent de DarkKitsune et évoluent avec le marché. Elles restent un repère, pas une garantie d’équité.`, { unit: mode.unit }))}</span></p>
       ${canRespondToTrade(trade) ? counterFormMarkup(trade) : ''}
       ${trackerMarkup(trade)}
       <section class="counteroffer-history" aria-labelledby="counter-history-title">

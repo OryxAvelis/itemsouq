@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Compare jusqu’à quatre fruits de chaque côté avec les valeurs du wiki Blox Fruits." data-i18n-content="calculator.meta.description">
+  <meta name="description" content="Compare jusqu’à quatre fruits de chaque côté avec les valeurs communautaires DarkKitsune." data-i18n-content="calculator.meta.description">
   <meta name="theme-color" content="#07111f">
   <title data-i18n="calculator.meta.title">Calculateur d’échange · Itemsouq Fruits</title>
   <link rel="icon" href="assets/favicon.svg?v=2" type="image/svg+xml">
@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="assets/css/style.css?v=20260907-1">
   <link rel="stylesheet" href="assets/css/features.css?v=20260902-9">
-  <link rel="stylesheet" href="assets/css/calculator.css?v=20260902-9">
+  <link rel="stylesheet" href="assets/css/calculator.css?v=20260925-1">
   <link rel="stylesheet" href="assets/css/assistant.css?v=20260922-2">
 </head>
 <body class="calculator-page">
@@ -21,7 +21,7 @@
 
   <div class="announcement calculator-announcement">
     <div class="container announcement-inner">
-      <span><i class="fa-solid fa-scale-balanced" aria-hidden="true"></i> <span data-i18n="calculator.announcement.values">Valeurs du wiki · Comparaison locale</span></span>
+      <span><i class="fa-solid fa-scale-balanced" aria-hidden="true"></i> <span data-i18n="calculator.announcement.values">Valeurs DarkKitsune · Comparaison locale</span></span>
       <span class="announcement-payments" data-i18n="calculator.announcement.notice">Repère uniquement · Aucun échange effectué ici</span>
     </div>
   </div>
@@ -78,13 +78,13 @@
         <div class="calculator-hero-copy">
           <div class="calculator-eyebrow"><span class="live-dot"></span> <span data-i18n="calculator.heroEyebrow">OUTIL DE COMPARAISON · DÉMO</span></div>
           <h1 id="calculator-hero-title" data-i18n-html="calculator.heroTitle">Compare avant<br><span>d’accepter l’échange.</span></h1>
-          <p data-i18n="calculator.heroCopy">Compose les deux côtés, compare leur valeur wiki et repère rapidement qui donne le plus.</p>
+          <p data-i18n="calculator.heroCopy">Compose les deux côtés, compare leur valeur communautaire et repère rapidement qui donne le plus.</p>
           <div class="calculator-hero-actions">
             <a class="btn btn-primary btn-large" href="#calculator-workspace"><i class="fa-solid fa-calculator" aria-hidden="true"></i> <span data-i18n="calculator.heroStart">Commencer le calcul</span></a>
             <a class="btn calculator-ghost-button btn-large" href="trading.html"><span data-i18n="calculator.heroBrowseTrades">Voir les offres</span> <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
           </div>
           <div class="calculator-hero-trust">
-            <span><i class="fa-solid fa-database" aria-hidden="true"></i> <span data-i18n="calculator.source.copy">Les noms et valeurs Beli/Robux viennent du wiki Blox Fruits sur Fandom.</span></span>
+            <span><i class="fa-solid fa-database" aria-hidden="true"></i> <span data-i18n="calculator.source.copy">Valeurs communautaires et scores vérifiés sur DarkKitsune.</span></span>
             <span><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> <span data-i18n="calculator.announcement.notice">Repère uniquement · Aucun échange effectué ici</span></span>
           </div>
         </div>
@@ -99,14 +99,14 @@
               <span class="calculator-preview-image dragon"><img src="assets/images/fruits/dragon.webp" alt="" width="512" height="498"></span>
               <small data-i18n="calculator.side.yours">TON OFFRE</small>
               <strong>Dragon</strong>
-              <b>15 000 000 Beli</b>
+              <b>3 000 000 000</b>
             </div>
             <span class="calculator-preview-swap"><i class="fa-solid fa-arrow-right-arrow-left"></i></span>
             <div class="calculator-preview-fruit">
               <span class="calculator-preview-image kitsune"><img src="assets/images/fruits/kitsune.webp" alt="" width="512" height="512"></span>
               <small data-i18n="calculator.side.theirs">LEUR OFFRE</small>
               <strong>Kitsune</strong>
-              <b>8 000 000 Beli</b>
+              <b>400 000 000</b>
             </div>
           </div>
           <div class="calculator-preview-foot"><i class="fa-solid fa-circle-info"></i> <span data-i18n="calculator.result.marketNote">La demande réelle entre joueurs peut modifier l’intérêt de l’échange.</span></div>
@@ -135,13 +135,13 @@
                 <label class="calculator-mode-option">
                   <input type="radio" name="calc-mode" value="physical" checked>
                   <span class="calculator-mode-icon"><i class="fa-solid fa-box-open" aria-hidden="true"></i></span>
-                  <span class="calculator-mode-copy"><strong data-i18n="trading.mode.physical">Physique</strong><small data-i18n="calculator.formatPhysicalHint">Comparaison avec les valeurs Beli</small></span>
+                  <span class="calculator-mode-copy"><strong data-i18n="trading.mode.physical">Physique</strong><small data-i18n="calculator.formatPhysicalHint">Valeurs d’échange des fruits physiques</small></span>
                   <span class="calculator-mode-check" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
                 </label>
                 <label class="calculator-mode-option">
                   <input type="radio" name="calc-mode" value="permanent">
                   <span class="calculator-mode-icon"><i class="fa-solid fa-infinity" aria-hidden="true"></i></span>
-                  <span class="calculator-mode-copy"><strong data-i18n="trading.mode.permanent">Permanent</strong><small data-i18n="calculator.formatPermanentHint">Comparaison avec les valeurs Robux</small></span>
+                  <span class="calculator-mode-copy"><strong data-i18n="trading.mode.permanent">Permanent</strong><small data-i18n="calculator.formatPermanentHint">Valeurs d’échange des fruits permanents</small></span>
                   <span class="calculator-mode-check" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
                 </label>
               </div>
@@ -167,7 +167,7 @@
               <button class="calculator-add-fruit" type="button" data-open-picker="left" aria-haspopup="dialog" aria-controls="calc-picker-modal" aria-expanded="false">
                 <i class="fa-solid fa-plus" aria-hidden="true"></i> <span data-i18n="calculator.side.addYours">Ajouter à ton offre</span>
               </button>
-              <div class="calculator-side-total"><span data-i18n="calculator.side.total">Total wiki</span><strong id="calc-left-total">0 Beli</strong></div>
+              <div class="calculator-side-total"><span data-i18n="calculator.side.total">Valeur totale</span><strong id="calc-left-total">0</strong></div>
             </fieldset>
 
             <div class="calculator-swap-rail">
@@ -193,7 +193,7 @@
               <button class="calculator-add-fruit" type="button" data-open-picker="right" aria-haspopup="dialog" aria-controls="calc-picker-modal" aria-expanded="false">
                 <i class="fa-solid fa-plus" aria-hidden="true"></i> <span data-i18n="calculator.side.addTheirs">Ajouter à leur offre</span>
               </button>
-              <div class="calculator-side-total"><span data-i18n="calculator.side.total">Total wiki</span><strong id="calc-right-total">0 Beli</strong></div>
+              <div class="calculator-side-total"><span data-i18n="calculator.side.total">Valeur totale</span><strong id="calc-right-total">0</strong></div>
             </fieldset>
           </div>
 
@@ -212,12 +212,12 @@
             </div>
             <div class="calculator-result-values" aria-hidden="true">
               <div class="calculator-result-side">
-                <span data-i18n="calculator.side.yours">TON OFFRE</span><strong id="calc-result-left">0 Beli</strong>
+                <span data-i18n="calculator.side.yours">TON OFFRE</span><strong id="calc-result-left">0</strong>
                 <span class="calculator-value-bar"><i id="calc-left-bar"></i></span>
               </div>
               <div class="calculator-result-divider"><i class="fa-solid fa-right-left"></i></div>
               <div class="calculator-result-side is-right">
-                <span data-i18n="calculator.side.theirs">LEUR OFFRE</span><strong id="calc-result-right">0 Beli</strong>
+                <span data-i18n="calculator.side.theirs">LEUR OFFRE</span><strong id="calc-result-right">0</strong>
                 <span class="calculator-value-bar"><i id="calc-right-bar"></i></span>
               </div>
             </div>
@@ -234,8 +234,8 @@
 
           <aside class="calculator-disclaimer" role="note">
             <span class="calculator-disclaimer-icon"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i></span>
-            <div><strong data-i18n="calculator.source.title">Un repère, pas un prix de marché</strong><p data-i18n="calculator.source.disclaimer">Ce calcul compare les valeurs officielles du wiki. Il ne mesure ni la demande communautaire ni une valeur de marché garantie.</p></div>
-            <a href="https://blox-fruits.fandom.com/wiki/Blox_Fruits" target="_blank" rel="noopener"><span data-i18n="calculator.source.link">Consulter la source des valeurs</span> <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a>
+            <div><strong data-i18n="calculator.source.title">Un repère communautaire, pas une garantie</strong><p data-i18n="calculator.source.disclaimer">Valeurs et scores vérifiés sur DarkKitsune. La demande est reflétée dans la valeur communautaire, mais elle peut évoluer. Dragon utilise la valeur East comme base ; Magnet reste indisponible jusqu’à sa publication par la source.</p></div>
+            <a href="https://darkkitsune.com/fruits" target="_blank" rel="noopener"><span data-i18n="calculator.source.link">Consulter la source des valeurs</span> <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a>
           </aside>
         </div>
       </div>
@@ -265,7 +265,7 @@
           <p data-i18n="calculator.howCopy">Le calcul reste entièrement dans ton navigateur.</p>
         </div>
         <div class="calculator-how-grid">
-          <article><span>01</span><i class="fa-solid fa-coins" aria-hidden="true"></i><h3 data-i18n="calculator.step1Title">Choisis le format</h3><p data-i18n="calculator.step1Copy">Compare les fruits physiques en Beli ou permanents en Robux.</p></article>
+          <article><span>01</span><i class="fa-solid fa-coins" aria-hidden="true"></i><h3 data-i18n="calculator.step1Title">Choisis le format</h3><p data-i18n="calculator.step1Copy">Compare les valeurs communautaires physiques ou permanentes.</p></article>
           <article><span>02</span><i class="fa-solid fa-layer-group" aria-hidden="true"></i><h3 data-i18n="calculator.step2Title">Compose les deux côtés</h3><p data-i18n="calculator.step2Copy">Ajoute jusqu’à quatre fruits à chaque offre.</p></article>
           <article><span>03</span><i class="fa-solid fa-scale-balanced" aria-hidden="true"></i><h3 data-i18n="calculator.step3Title">Lis le résultat avec recul</h3><p data-i18n="calculator.step3Copy">Vérifie toujours la demande et l’échange dans le jeu avant d’accepter.</p></article>
         </div>
@@ -280,7 +280,7 @@
           <span class="brand-mark" aria-hidden="true"><img src="assets/brand/itemsouq-mark.svg" alt="" width="64" height="64" loading="lazy"></span>
           <span class="brand-copy"><strong>ITEMSOUQ</strong><small>FRUITS MARKET</small></span>
         </a>
-        <p data-i18n="calculator.source.copy">Les noms et valeurs Beli/Robux viennent du wiki Blox Fruits sur Fandom.</p>
+        <p data-i18n="calculator.source.copy">Valeurs communautaires et scores vérifiés sur DarkKitsune.</p>
       </div>
       <div>
         <h3 data-i18n="trading.footer.explore">Explorer</h3>
@@ -294,11 +294,11 @@
         <h3 data-i18n="trading.footer.help">Aide</h3>
         <a href="index.html#comment-acheter" data-i18n="nav.how">Comment acheter</a>
         <a href="index.html#faq" data-i18n="trading.footer.faq">Questions fréquentes</a>
-        <a href="https://blox-fruits.fandom.com/wiki/Blox_Fruits" target="_blank" rel="noopener" data-i18n="trading.footer.source">Source des valeurs</a>
+        <a href="https://darkkitsune.com/fruits" target="_blank" rel="noopener" data-i18n="trading.footer.source">Source des valeurs</a>
       </div>
       <div>
         <h3 data-i18n="trading.footer.important">Important</h3>
-        <p class="footer-small" data-i18n="calculator.source.disclaimer">Ce calcul compare les valeurs officielles du wiki. Il ne mesure ni la demande communautaire ni une valeur de marché garantie.</p>
+        <p class="footer-small" data-i18n="calculator.source.disclaimer">Valeurs et scores vérifiés sur DarkKitsune. La demande est reflétée dans la valeur communautaire, mais elle peut évoluer.</p>
       </div>
     </div>
     <div class="container footer-bottom"><span data-i18n="trading.footer.copyright">© 2026 Itemsouq · Marketplace communautaire</span><span data-i18n="trading.footer.disclaimer">Non affilié à Roblox ou Blox Fruits</span></div>
@@ -336,9 +336,9 @@
   <div class="sr-only" id="calc-alert" role="alert" aria-live="assertive" aria-atomic="true"></div>
 
   <aside class="calculator-mobile-summary calc-mobile-summary" id="calc-mobile-summary" aria-hidden="true" hidden>
-    <span><small data-i18n="calculator.side.yours">TON OFFRE</small><strong id="calc-mobile-left">0 Beli</strong></span>
+    <span><small data-i18n="calculator.side.yours">TON OFFRE</small><strong id="calc-mobile-left">0</strong></span>
     <span class="calculator-mobile-verdict"><i class="fa-solid fa-scale-balanced"></i><b id="calc-mobile-verdict">Compose les deux offres</b></span>
-    <span class="is-right"><small data-i18n="calculator.side.theirs">LEUR OFFRE</small><strong id="calc-mobile-right">0 Beli</strong></span>
+    <span class="is-right"><small data-i18n="calculator.side.theirs">LEUR OFFRE</small><strong id="calc-mobile-right">0</strong></span>
   </aside>
 
   <nav class="mobile-bottom-nav" aria-label="Navigation rapide" data-i18n-aria="aria.quickNavigation">
@@ -350,9 +350,9 @@
   </nav>
 
   <script src="assets/js/config.js?v=20260905-1"></script>
-  <script src="assets/js/fruits.js?v=20260905-1"></script>
-  <script src="assets/js/locale.js?v=20260907-2"></script>
-  <script src="assets/js/calculator.js?v=20260902-9"></script>
+  <script src="assets/js/fruits.js?v=20260925-1"></script>
+  <script src="assets/js/locale.js?v=20260925-1"></script>
+  <script src="assets/js/calculator.js?v=20260925-1"></script>
   <script src="assets/js/assistant.js?v=20260922-2"></script>
 </body>
 </html>

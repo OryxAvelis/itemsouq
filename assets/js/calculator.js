@@ -131,7 +131,8 @@
 
   function sanitizeLine(line, mode = 'physical') {
     const fruitId = slugify(line?.fruitId || line?.id || '');
-    if (!fruitById.has(fruitId)) return null;
+    const fruit = fruitById.get(fruitId);
+    if (!fruit || !hasTradeValue(fruit, mode)) return null;
     const quantity = mode === 'permanent'
       ? 1
       : Math.min(MAX_QUANTITY, Math.max(1, Number.parseInt(line?.quantity, 10) || 1));
@@ -221,15 +222,20 @@
   }
 
   function valueFor(fruit, mode = state.mode) {
-    const value = mode === 'permanent' ? fruit?.robux : fruit?.beli;
-    return Number.isFinite(Number(value)) ? Number(value) : 0;
+    const value = fruit?.trade?.[mode];
+    return Number.isFinite(Number(value)) ? Number(value) : null;
+  }
+
+  function hasTradeValue(fruit, mode = state.mode) {
+    const value = valueFor(fruit, mode);
+    return Number.isFinite(value) && value > 0;
   }
 
   function linesTotal(lines, mode = state.mode) {
     return lines.reduce((sum, line) => {
       const fruit = fruitById.get(line.fruitId);
       const quantity = mode === 'permanent' ? 1 : line.quantity;
-      return sum + (valueFor(fruit, mode) * quantity);
+      return sum + ((valueFor(fruit, mode) || 0) * quantity);
     }, 0);
   }
 
@@ -243,12 +249,6 @@
     }).format(Number(value) || 0);
   }
 
-  function unitLabel(mode = state.mode) {
-    return mode === 'permanent'
-      ? t('calculator.value.robux', 'Robux')
-      : t('calculator.value.beli', 'Beli');
-  }
-
   function modeLabel(mode = state.mode) {
     return mode === 'permanent'
       ? t('mode.permanentLong', 'Fruit permanent')
@@ -256,7 +256,22 @@
   }
 
   function formatValue(value, mode = state.mode) {
-    return `${formatNumber(value)} ${unitLabel(mode)}`;
+    void mode;
+    return Number.isFinite(Number(value))
+      ? formatNumber(value)
+      : t('calculator.value.unavailable', 'Valeur indisponible');
+  }
+
+  function scoreSummary(fruit) {
+    const trade = fruit?.trade;
+    if (!trade || !Number.isFinite(Number(trade.rating))) {
+      return t('calculator.score.pending', 'Scores en attente');
+    }
+    return t('calculator.score.summary', 'Score {rating}/10 · PvE {pve}/10 · PvP {pvp}/10', {
+      rating: trade.rating,
+      pve: trade.pve,
+      pvp: trade.pvp
+    });
   }
 
   function sideLabel(side) {
@@ -333,7 +348,7 @@
     if (percent <= 5) {
       status = 'balanced';
       label = t('calculator.result.balancedTitle', 'Échange équilibré');
-      copy = t('calculator.result.balancedCopy', 'Les deux côtés ont une valeur wiki très proche.');
+      copy = t('calculator.result.balancedCopy', 'Les deux côtés ont une valeur communautaire très proche.');
       shortLabel = t('calculator.result.fair', 'Équilibré');
       icon = 'fa-scale-balanced';
     } else if (percent <= 15) {
@@ -344,14 +359,14 @@
       icon = 'fa-arrows-left-right-to-line';
     } else if (delta > 0) {
       label = t('calculator.result.youOverpayTitle', 'Tu donnes plus');
-      copy = t('calculator.result.youOverpayCopy', 'Ton côté vaut {difference} de plus selon le wiki.', {
+      copy = t('calculator.result.youOverpayCopy', 'Ton côté vaut {difference} de plus selon DarkKitsune.', {
         difference: formatValue(difference)
       });
       shortLabel = t('calculator.result.uneven', 'Déséquilibré');
       icon = 'fa-arrow-left-long';
     } else {
       label = t('calculator.result.theyOverpayTitle', "L’autre joueur donne plus");
-      copy = t('calculator.result.theyOverpayCopy', 'Leur côté vaut {difference} de plus selon le wiki.', {
+      copy = t('calculator.result.theyOverpayCopy', 'Leur côté vaut {difference} de plus selon DarkKitsune.', {
         difference: formatValue(difference)
       });
       shortLabel = t('calculator.result.uneven', 'Déséquilibré');
@@ -388,6 +403,7 @@
         <span class="calc-fruit-copy">
           <strong>${escapeHtml(fruit.name)}</strong>
           <small><span>${escapeHtml(rarity)}</span><b aria-hidden="true">·</b>${escapeHtml(formatValue(totalValue))}</small>
+          <small class="calc-fruit-score"><i class="fa-solid fa-chart-simple" aria-hidden="true"></i>${escapeHtml(scoreSummary(fruit))}</small>
         </span>
         ${quantityControls}
         <button class="calc-remove-fruit" type="button" data-remove-side="${side}" data-fruit-id="${line.fruitId}" aria-label="${escapeHtml(removeLabel)}" title="${escapeHtml(removeLabel)}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
@@ -438,7 +454,7 @@
     if (elements.resultGap) {
       elements.resultGap.textContent = result.complete
         ? (result.difference === 0
-          ? t('calculator.result.equal', 'Même valeur wiki')
+          ? t('calculator.result.equal', 'Même valeur communautaire')
           : t('calculator.result.gap', `Écart de ${result.percent}%`, { percent: result.percent }))
         : '—';
     }
@@ -590,7 +606,10 @@
 
   function pickerOption(fruit, line, disabled, tabbable, usedSlots) {
     const fruitId = slugify(fruit.name);
-    const value = formatValue(valueFor(fruit));
+    const available = hasTradeValue(fruit);
+    const value = available
+      ? formatValue(valueFor(fruit))
+      : t('calculator.value.sourcePending', 'Valeur DarkKitsune en attente pour {fruit}', { fruit: fruit.name });
     const selected = Boolean(line);
     const quantity = selected ? (state.mode === 'permanent' ? 1 : line.quantity) : 0;
     const sideKey = pickerSide === 'left' ? 'calculator.picker.addYoursAria' : 'calculator.picker.addTheirsAria';
@@ -605,10 +624,10 @@
         <button type="button" data-picker-quantity data-fruit-id="${fruitId}" data-quantity-delta="1" aria-label="${escapeHtml(increaseLabel)}" title="${escapeHtml(increaseLabel)}" ${usedSlots >= MAX_FRUITS ? 'disabled' : ''}><i class="fa-solid fa-plus" aria-hidden="true"></i></button>
       </span>` : '';
     return `
-      <article class="calc-picker-option${selected ? ' is-selected' : ''}${disabled ? ' is-disabled' : ''}">
-        <button class="calc-picker-choice" type="button" data-picker-fruit="${fruitId}" aria-pressed="${selected}" aria-label="${escapeHtml(selected ? selectedLabel : `${baseLabel}, ${value}`)}" tabindex="${tabbable ? '0' : '-1'}" ${disabled ? 'disabled' : ''}>
+      <article class="calc-picker-option${selected ? ' is-selected' : ''}${disabled ? ' is-disabled' : ''}${available ? '' : ' is-unavailable'}">
+        <button class="calc-picker-choice" type="button" data-picker-fruit="${fruitId}" aria-pressed="${selected}" aria-label="${escapeHtml(selected ? selectedLabel : `${baseLabel}, ${value}`)}" title="${escapeHtml(available ? scoreSummary(fruit) : value)}" tabindex="${tabbable ? '0' : '-1'}" ${disabled ? 'disabled' : ''}>
           <span class="calc-picker-art"><img src="${fruitImagePath(fruit)}" alt="" width="64" height="64"></span>
-          <span class="calc-picker-copy"><strong>${escapeHtml(fruit.name)}</strong><small>${escapeHtml(t(`rarity.${fruit.rarity}`, fruit.rarity))} · ${escapeHtml(value)}</small></span>
+          <span class="calc-picker-copy"><strong>${escapeHtml(fruit.name)}</strong><small>${escapeHtml(t(`rarity.${fruit.rarity}`, fruit.rarity))} · ${escapeHtml(value)}</small><small class="calc-picker-score">${escapeHtml(available ? scoreSummary(fruit) : t('calculator.score.pending', 'Scores en attente'))}</small></span>
           ${quantityControls ? '' : `<span class="calc-picker-check" aria-hidden="true"><i class="fa-solid ${selected ? 'fa-check' : 'fa-plus'}"></i></span>`}
         </button>
         ${quantityControls}
@@ -624,6 +643,7 @@
     const filtered = fruits.filter((fruit) => normalizeSearch(`${fruit.name} ${fruit.rarity} ${fruit.type}`).includes(query));
     const atLimit = usedSlots >= MAX_FRUITS;
     const enabledIds = filtered
+      .filter((fruit) => hasTradeValue(fruit))
       .map((fruit) => slugify(fruit.name))
       .filter((fruitId) => !atLimit || selected.has(fruitId));
     const focusedFruitId = document.activeElement?.dataset?.pickerFruit || null;
@@ -644,7 +664,8 @@
     elements.pickerList.innerHTML = filtered.map((fruit) => {
       const fruitId = slugify(fruit.name);
       const line = selected.get(fruitId) || null;
-      return pickerOption(fruit, line, atLimit && !line, fruitId === pickerActiveFruitId, usedSlots);
+      const unavailable = !hasTradeValue(fruit);
+      return pickerOption(fruit, line, unavailable || (atLimit && !line), fruitId === pickerActiveFruitId, usedSlots);
     }).join('');
     if (elements.pickerEmpty) elements.pickerEmpty.hidden = filtered.length > 0;
     if (elements.pickerCount) elements.pickerCount.textContent = t('calculator.picker.slots', `${usedSlots}/4 places utilisées`, { count: usedSlots, limit: MAX_FRUITS });
@@ -666,6 +687,13 @@
 
   function togglePickerFruit(fruitId) {
     if (!pickerSide || !fruitById.has(fruitId)) return;
+    const fruit = fruitById.get(fruitId);
+    if (!hasTradeValue(fruit)) {
+      const message = t('calculator.value.sourcePending', 'Valeur DarkKitsune en attente pour {fruit}', { fruit: fruit.name });
+      setAlert(message);
+      showToast(message, 'warning');
+      return;
+    }
     const lines = pickerSide === 'left' ? state.left : state.right;
     const existingIndex = lines.findIndex((line) => line.fruitId === fruitId);
     if (existingIndex >= 0) {
@@ -763,8 +791,8 @@
         fruits: lineNames(state.right), value: formatValue(result.rightTotal)
       }),
       t('calculator.shareMessage.result', `Résultat : ${result.label}`, { result: result.label }),
-      t('calculator.shareMessage.gap', `Écart wiki : ${result.percent}%`, { percent: result.percent ?? 0 }),
-      t('calculator.shareMessage.notice', 'Repère wiki uniquement ; la demande réelle peut varier.')
+      t('calculator.shareMessage.gap', `Écart de valeur communautaire : ${result.percent}%`, { percent: result.percent ?? 0 }),
+      t('calculator.shareMessage.notice', 'Valeurs communautaires DarkKitsune ; elles évoluent avec la demande et ne garantissent pas un échange équitable.')
     ].join('\n');
   }
 
